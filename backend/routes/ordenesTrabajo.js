@@ -1,0 +1,11 @@
+const express = require('express');
+const router = express.Router();
+const c = require('../controllers/ordenTrabajoController');
+router.get('/pendientes', c.getPending);
+router.get('/', c.getAll);
+router.get('/:id', c.getById);
+router.post('/', c.create);
+router.patch('/:id/iniciar', c.start);
+router.patch('/:id/completar', c.complete);
+router.patch('/:id/cancelar', c.cancel);
+module.exports = router;

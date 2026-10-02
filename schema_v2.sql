@@ -1,0 +1,231 @@
+﻿-- SISTEMA GASAGAS v2.1 - PostgreSQL 18
+DROP TABLE IF EXISTS detalle_entregas CASCADE;
+DROP TABLE IF EXISTS entregas CASCADE;
+DROP TABLE IF EXISTS llenados CASCADE;
+DROP TABLE IF EXISTS ordenes_trabajo CASCADE;
+DROP TABLE IF EXISTS detalle_recepciones CASCADE;
+DROP TABLE IF EXISTS recepciones CASCADE;
+DROP TABLE IF EXISTS envase_observaciones CASCADE;
+DROP TABLE IF EXISTS envases CASCADE;
+DROP TABLE IF EXISTS trabajador_cargos CASCADE;
+DROP TABLE IF EXISTS cargos CASCADE;
+DROP TABLE IF EXISTS trabajadores CASCADE;
+DROP TABLE IF EXISTS productos CASCADE;
+DROP TABLE IF EXISTS clientes CASCADE;
+
+CREATE TABLE clientes (
+    id_cliente SERIAL PRIMARY KEY,
+    razon_social VARCHAR(150) NOT NULL,
+    rut VARCHAR(20) UNIQUE NOT NULL,
+    direccion VARCHAR(200),
+    comuna VARCHAR(100),
+    telefono VARCHAR(20),
+    email VARCHAR(100),
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    activo BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE trabajadores (
+    id_trabajador SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    telefono VARCHAR(20),
+    activo BOOLEAN DEFAULT TRUE,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE cargos (
+    id_cargo SERIAL PRIMARY KEY,
+    nombre VARCHAR(50) UNIQUE NOT NULL
+);
+
+CREATE TABLE trabajador_cargos (
+    id_trabajador INTEGER NOT NULL REFERENCES trabajadores(id_trabajador) ON DELETE CASCADE,
+    id_cargo INTEGER NOT NULL REFERENCES cargos(id_cargo),
+    PRIMARY KEY (id_trabajador, id_cargo)
+);
+
+CREATE TABLE productos (
+    id_producto SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    unidad_medida VARCHAR(20) NOT NULL CHECK (unidad_medida IN ('M3','Kilos','Litros')),
+    precio_unitario DECIMAL(10,2),
+    stock_disponible DECIMAL(12,2) DEFAULT 0,
+    stock_minimo DECIMAL(12,2) DEFAULT 0,
+    activo BOOLEAN DEFAULT TRUE
+);
+CREATE TABLE envases (
+    id_envase SERIAL PRIMARY KEY,
+    codigo_interno VARCHAR(50) UNIQUE NOT NULL,
+    id_producto INTEGER NOT NULL REFERENCES productos(id_producto),
+    capacidad DECIMAL(10,2),
+    propiedad VARCHAR(30) NOT NULL CHECK (propiedad IN ('Propiedad_empresa','Propiedad_cliente','Tercero')),
+    id_propietario INTEGER REFERENCES clientes(id_cliente),
+    estado VARCHAR(30) NOT NULL DEFAULT 'Disponible' CHECK (estado IN ('Disponible','Vacio','En llenado','Lleno','En reparacion','En bodega','Entregado','Baja')),
+    observaciones_generales TEXT,
+    fecha_ultimo_llenado TIMESTAMP,
+    fecha_proxima_prueba DATE,
+    activo BOOLEAN DEFAULT TRUE,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE envase_observaciones (
+    id_observacion SERIAL PRIMARY KEY,
+    id_envase INTEGER NOT NULL REFERENCES envases(id_envase),
+    id_trabajador INTEGER NOT NULL REFERENCES trabajadores(id_trabajador),
+    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    tipo VARCHAR(30) NOT NULL CHECK (tipo IN ('Dano','Reparacion','Mantenimiento','General')),
+    descripcion TEXT NOT NULL
+);
+
+CREATE TABLE recepciones (
+    id_recepcion SERIAL PRIMARY KEY,
+    id_cliente INTEGER NOT NULL REFERENCES clientes(id_cliente),
+    id_recepcionista INTEGER NOT NULL REFERENCES trabajadores(id_trabajador),
+    fecha_recepcion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    numero_comprobante VARCHAR(50) UNIQUE NOT NULL,
+    observaciones TEXT,
+    estado VARCHAR(20) DEFAULT 'Abierta' CHECK (estado IN ('Abierta','Cerrada','Cancelada'))
+);
+
+CREATE TABLE detalle_recepciones (
+    id_detalle SERIAL PRIMARY KEY,
+    id_recepcion INTEGER NOT NULL REFERENCES recepciones(id_recepcion) ON DELETE CASCADE,
+    id_envase INTEGER NOT NULL REFERENCES envases(id_envase),
+    gas_solicitado INTEGER NOT NULL REFERENCES productos(id_producto),
+    estado_recibido VARCHAR(30) NOT NULL,
+    requiere_reparacion BOOLEAN DEFAULT FALSE,
+    observaciones TEXT,
+    procesado BOOLEAN DEFAULT FALSE
+);
+CREATE TABLE ordenes_trabajo (
+    id_orden SERIAL PRIMARY KEY,
+    id_detalle_recepcion INTEGER NOT NULL REFERENCES detalle_recepciones(id_detalle),
+    id_envase INTEGER NOT NULL REFERENCES envases(id_envase),
+    tipo_trabajo VARCHAR(50) NOT NULL CHECK (tipo_trabajo IN ('Prueba hidraulica','Reparacion de valvula','Pintura/Identificacion','Soldadura/Parche')),
+    prioridad VARCHAR(20) DEFAULT 'Normal' CHECK (prioridad IN ('Alta','Normal','Baja')),
+    id_asignado INTEGER REFERENCES trabajadores(id_trabajador),
+    estado VARCHAR(20) DEFAULT 'Pendiente' CHECK (estado IN ('Pendiente','En proceso','Completada','Cancelada')),
+    descripcion_trabajo TEXT,
+    resultado TEXT,
+    repuestos TEXT,
+    tiempo_invertido INTEGER,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_inicio TIMESTAMP,
+    fecha_cierre TIMESTAMP
+);
+
+CREATE TABLE llenados (
+    id_llenado SERIAL PRIMARY KEY,
+    id_detalle_recepcion INTEGER NOT NULL REFERENCES detalle_recepciones(id_detalle),
+    id_envase INTEGER NOT NULL REFERENCES envases(id_envase),
+    id_llenador INTEGER NOT NULL REFERENCES trabajadores(id_trabajador),
+    gas_llenado INTEGER NOT NULL REFERENCES productos(id_producto),
+    cantidad DECIMAL(10,2) NOT NULL,
+    fecha_llenado TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    destino VARCHAR(20) NOT NULL CHECK (destino IN ('Retiro inmediato','Bodega temporal'))
+);
+
+CREATE TABLE entregas (
+    id_entrega SERIAL PRIMARY KEY,
+    id_cliente INTEGER NOT NULL REFERENCES clientes(id_cliente),
+    id_despachador INTEGER NOT NULL REFERENCES trabajadores(id_trabajador),
+    fecha_entrega TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    numero_documento VARCHAR(50) UNIQUE NOT NULL,
+    tipo_documento VARCHAR(20) NOT NULL CHECK (tipo_documento IN ('Vale','Factura','Boleta')),
+    patente_vehiculo VARCHAR(10),
+    firma_cliente VARCHAR(100),
+    observaciones TEXT
+);
+
+CREATE TABLE detalle_entregas (
+    id_detalle SERIAL PRIMARY KEY,
+    id_entrega INTEGER NOT NULL REFERENCES entregas(id_entrega) ON DELETE CASCADE,
+    id_llenado INTEGER NOT NULL REFERENCES llenados(id_llenado),
+    id_envase INTEGER NOT NULL REFERENCES envases(id_envase)
+);
+-- INDICES
+CREATE INDEX idx_envases_producto ON envases(id_producto);
+CREATE INDEX idx_envases_estado ON envases(estado);
+CREATE INDEX idx_envases_propietario ON envases(id_propietario);
+CREATE INDEX idx_obs_envase ON envase_observaciones(id_envase);
+CREATE INDEX idx_recepcion_cliente ON recepciones(id_cliente);
+CREATE INDEX idx_detalle_recepcion ON detalle_recepciones(id_recepcion);
+CREATE INDEX idx_detalle_envase ON detalle_recepciones(id_envase);
+CREATE INDEX idx_ot_envase ON ordenes_trabajo(id_envase);
+CREATE INDEX idx_ot_estado ON ordenes_trabajo(estado);
+CREATE INDEX idx_llenado_envase ON llenados(id_envase);
+CREATE INDEX idx_entrega_cliente ON entregas(id_cliente);
+
+-- DATOS INICIALES: Productos
+INSERT INTO productos (nombre, descripcion, unidad_medida, precio_unitario, stock_disponible, stock_minimo) VALUES
+('Oxigeno', 'Oxigeno medicinal/industrial', 'M3', 2500.00, 5000.00, 500.00),
+('Acetileno', 'Gas para soldadura', 'M3', 3200.00, 2000.00, 300.00),
+('Nitrogeno', 'Nitrogeno industrial', 'M3', 1800.00, 4000.00, 400.00),
+('Argon', 'Argon para soldadura TIG', 'M3', 2800.00, 3000.00, 300.00),
+('CO2', 'Dioxido de carbono', 'M3', 1500.00, 2500.00, 250.00),
+('N2O', 'Oxido nitroso', 'M3', 4000.00, 1000.00, 100.00),
+('Mezcla', 'Mezcla especial', 'M3', 5000.00, 800.00, 100.00);
+
+-- DATOS INICIALES: Clientes
+INSERT INTO clientes (razon_social, rut, direccion, comuna, telefono, email) VALUES
+('Constructora Ejemplo S.A.', '76.123.456-7', 'Av. Industrial 1234', 'Santiago', '+56912345678', 'contacto@ejemplo.cl'),
+('Hospital Regional', '80.987.654-3', 'Av. Salud 567', 'Providencia', '+56987654321', 'logistica@hospital.cl'),
+('Taller Mecanico Los Andes', '99.111.222-3', 'Calle Maquinaria 89', 'Quilicura', '+56911223344', 'taller@andes.cl');
+-- DATOS INICIALES: Trabajadores
+INSERT INTO trabajadores (nombre, telefono) VALUES
+('Carlos Martinez', '+56911111111'),
+('Ana Rodriguez', '+56922222222'),
+('Pedro Sanchez', '+56933333333'),
+('Maria Lopez', '+56944444444'),
+('Jorge Torres', '+56955555555');
+
+-- DATOS INICIALES: Cargos
+INSERT INTO cargos (nombre) VALUES
+('Recepcionista'),
+('Llenador'),
+('Despachador'),
+('Jefe de planta'),
+('Especialista');
+
+-- Asignar un cargo a cada trabajador (1 a 1 en la semilla inicial)
+INSERT INTO trabajador_cargos (id_trabajador, id_cargo) VALUES
+(1, 1), -- Carlos -> Recepcionista
+(2, 2), -- Ana -> Llenador
+(3, 3), -- Pedro -> Despachador
+(4, 4), -- Maria -> Jefe de planta
+(5, 5); -- Jorge -> Especialista
+
+-- DATOS INICIALES: Envases (cilindros de ejemplo)
+INSERT INTO envases (codigo_interno, id_producto, capacidad, propiedad, id_propietario, estado) VALUES
+('CIL-001', 1, 50, 'Propiedad_cliente', 1, 'Disponible'),
+('CIL-002', 1, 50, 'Propiedad_cliente', 1, 'Vacio'),
+('CIL-003', 2, 40, 'Propiedad_empresa', NULL, 'Disponible'),
+('CIL-004', 3, 50, 'Propiedad_cliente', 2, 'En reparacion'),
+('CIL-005', 4, 30, 'Tercero', 3, 'Lleno'),
+('CIL-006', 1, 50, 'Propiedad_empresa', NULL, 'En bodega'),
+('CIL-007', 5, 25, 'Propiedad_cliente', 1, 'Disponible');
+
+-- VISTA: Resumen de envases
+CREATE VIEW vw_envases_completo AS
+SELECT e.id_envase, e.codigo_interno, p.nombre AS gas, e.capacidad, e.propiedad,
+       c.razon_social AS propietario, e.estado, e.fecha_ultimo_llenado, e.fecha_proxima_prueba
+FROM envases e
+JOIN productos p ON e.id_producto = p.id_producto
+LEFT JOIN clientes c ON e.id_propietario = c.id_cliente;
+
+-- VISTA: Stock con alertas
+CREATE VIEW vw_stock_alertas AS
+SELECT id_producto, nombre, stock_disponible, stock_minimo,
+       CASE WHEN stock_disponible <= stock_minimo THEN 'CRITICO' ELSE 'OK' END AS estado_stock
+FROM productos WHERE activo = TRUE;
+
+-- VISTA: Trabajadores con sus cargos
+CREATE VIEW vw_trabajadores_cargos AS
+SELECT t.id_trabajador, t.nombre, t.telefono, t.activo, t.fecha_registro,
+       STRING_AGG(c.nombre, ', ' ORDER BY c.nombre) AS cargos
+FROM trabajadores t
+LEFT JOIN trabajador_cargos tc ON t.id_trabajador = tc.id_trabajador
+LEFT JOIN cargos c ON tc.id_cargo = c.id_cargo
+WHERE t.activo = TRUE
+GROUP BY t.id_trabajador, t.nombre, t.telefono, t.activo, t.fecha_registro;

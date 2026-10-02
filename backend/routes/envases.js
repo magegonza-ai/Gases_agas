@@ -1,0 +1,14 @@
+const express = require('express');
+const router = express.Router();
+const c = require('../controllers/envaseController');
+router.get('/resumen', c.getResumen);
+router.get('/codigo/:codigo', c.getByCodigo);
+router.get('/', c.getAll);
+router.get('/:id', c.getById);
+router.get('/:id/observaciones', c.getObservaciones);
+router.post('/', c.create);
+router.post('/:id/observaciones', c.addObservacion);
+router.put('/:id', c.update);
+router.patch('/:id/estado', c.updateEstado);
+router.delete('/:id', c.delete);
+module.exports = router;

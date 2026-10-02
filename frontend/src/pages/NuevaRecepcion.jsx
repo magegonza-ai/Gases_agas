@@ -1,0 +1,358 @@
+﻿import { useState, useEffect } from 'react';
+import { Form, Button, Table, Card, Row, Col, Alert, Badge, InputGroup, Spinner } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
+import { clientesAPI, trabajadoresAPI, productosAPI, envasesAPI, recepcionesAPI } from '../services/api';
+
+const estadosRecibido = ['Bueno', 'Regular', 'Danado'];
+const generarComprobante = () => {
+    const f = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `REC-${f.getFullYear()}${pad(f.getMonth()+1)}${pad(f.getDate())}-${pad(f.getHours())}${pad(f.getMinutes())}${pad(f.getSeconds())}`;
+};
+
+const NuevaRecepcion = () => {
+    const navigate = useNavigate();
+    const [clientes, setClientes] = useState([]);
+    const [recepcionistas, setRecepcionistas] = useState([]);
+    const [productos, setProductos] = useState([]);
+    const [idCliente, setIdCliente] = useState('');
+    const [idRecepcionista, setIdRecepcionista] = useState('');
+    const [numeroComprobante] = useState(generarComprobante);
+    const [observaciones, setObservaciones] = useState('');
+    const [codigoBusqueda, setCodigoBusqueda] = useState('');
+    const [buscando, setBuscando] = useState(false);
+    const [cilindroActual, setCilindroActual] = useState(null);
+    const [gasSolicitado, setGasSolicitado] = useState('');
+    const [estadoRecibido, setEstadoRecibido] = useState('Bueno');
+    const [requiereReparacion, setRequiereReparacion] = useState(false);
+    const [observacionCilindro, setObservacionCilindro] = useState('');
+    const [showCrear, setShowCrear] = useState(false);
+    const [nuevoCil, setNuevoCil] = useState({ gas: '', capacidad: '', propiedad: 'Propiedad_cliente' });
+    const [detalle, setDetalle] = useState([]);
+    const [error, setError] = useState('');
+    const [guardando, setGuardando] = useState(false);
+    const [creando, setCreando] = useState(false);
+
+    useEffect(() => { loadInitial(); }, []);
+
+    const loadInitial = async () => {
+        try {
+            const [cli, tra, pro] = await Promise.all([
+                clientesAPI.getAll(), trabajadoresAPI.getByCargo('Recepcionista'), productosAPI.getAll()
+            ]);
+            setClientes(cli.data);
+            setRecepcionistas(tra.data);
+            setProductos(pro.data);
+        } catch (e) { setError('Error cargando datos'); }
+    };
+
+    const clienteSeleccionado = clientes.find(c => c.id_cliente === Number(idCliente));
+
+    const buscarCilindro = async () => {
+        setError(''); setShowCrear(false); setCilindroActual(null);
+        if (!codigoBusqueda.trim()) return;
+        setBuscando(true);
+        try {
+            const res = await envasesAPI.getByCodigo(codigoBusqueda.trim());
+            setCilindroActual(res.data);
+            setGasSolicitado(String(res.data.id_producto));
+            setEstadoRecibido('Bueno');
+            setRequiereReparacion(false);
+            setObservacionCilindro('');
+        } catch (err) {
+            setShowCrear(true);
+            setNuevoCil({ gas: '', capacidad: '', propiedad: 'Propiedad_cliente' });
+        } finally { setBuscando(false); }
+    };
+
+    const crearYAgregar = async () => {
+        setCreando(true); setError('');
+        try {
+            if (!nuevoCil.gas) { setError('Seleccione un gas'); setCreando(false); return; }
+            const gasProd = Number(nuevoCil.gas);
+            const propietarioId = nuevoCil.propiedad === 'Propiedad_empresa' ? null : (Number(idCliente) || null);
+            const res = await envasesAPI.create({
+                codigo_interno: codigoBusqueda.trim(), id_producto: gasProd,
+                capacidad: nuevoCil.capacidad ? parseFloat(nuevoCil.capacidad) : null,
+                propiedad: nuevoCil.propiedad, id_propietario: propietarioId, estado: 'Vacio',
+            });
+            const prod = productos.find(p => p.id_producto === gasProd);
+            const nombreProp = nuevoCil.propiedad === 'Propiedad_empresa' ? 'Empresa' : (clienteSeleccionado ? clienteSeleccionado.razon_social : '');
+            setDetalle([...detalle, {
+                id_envase: res.data.id_envase, codigo_interno: res.data.codigo_interno,
+                gas_actual: prod ? prod.nombre : '', propietario_nombre: nombreProp,
+                gas_solicitado: gasProd, gas_solicitado_nombre: prod ? prod.nombre : '',
+                estado_recibido: 'Bueno', requiere_reparacion: false, observaciones: '',
+            }]);
+            setShowCrear(false); setCilindroActual(null); setCodigoBusqueda('');
+            setGasSolicitado(''); setEstadoRecibido('Bueno'); setRequiereReparacion(false); setObservacionCilindro('');
+        } catch (err) {
+            setError(err.response?.data?.error || 'Error creando cilindro');
+        } finally { setCreando(false); }
+    };
+
+    const agregarCilindro = (e) => {
+        e.preventDefault();
+        if (!cilindroActual) { setError('No hay cilindro seleccionado'); return; }
+        if (!gasSolicitado) { setError('Seleccione gas solicitado'); return; }
+        const gasProd = Number(gasSolicitado);
+        const prod = productos.find(p => p.id_producto === gasProd);
+        const nombreProp = cilindroActual.propiedad === 'Propiedad_empresa' ? 'Empresa' : (clienteSeleccionado ? clienteSeleccionado.razon_social : '');
+        setDetalle([...detalle, {
+            id_envase: cilindroActual.id_envase, codigo_interno: cilindroActual.codigo_interno,
+            gas_actual: cilindroActual.producto?.nombre || '', propietario_nombre: nombreProp,
+            gas_solicitado: gasProd, gas_solicitado_nombre: prod ? prod.nombre : '',
+            estado_recibido: estadoRecibido, requiere_reparacion: requiereReparacion,
+            observaciones: observacionCilindro,
+        }]);
+        setCilindroActual(null); setCodigoBusqueda(''); setGasSolicitado(''); setEstadoRecibido('Bueno');
+        setRequiereReparacion(false); setObservacionCilindro(''); setError('');
+    };
+
+    const quitarCilindro = (idx) => {
+        setDetalle(detalle.filter((_, i) => i !== idx));
+    };
+
+    const actualizarCilindro = (idx, campo, valor) => {
+        const copia = [...detalle];
+        copia[idx][campo] = valor;
+        if (campo === 'gas_solicitado') {
+            const prod = productos.find(p => p.id_producto === Number(valor));
+            copia[idx].gas_solicitado_nombre = prod ? prod.nombre : '';
+        }
+        setDetalle(copia);
+    };
+
+    const enviarRecepcion = async (e) => {
+        e.preventDefault();
+        setError('');
+        if (!idCliente || !idRecepcionista || detalle.length === 0) {
+            setError('Complete cliente, recepcionista y al menos un cilindro'); return;
+        }
+        setGuardando(true);
+        try {
+            await recepcionesAPI.create({
+                id_cliente: Number(idCliente), id_recepcionista: Number(idRecepcionista),
+                numero_comprobante: numeroComprobante, observaciones,
+                detalle: detalle.map(d => ({
+                    id_envase: d.id_envase, gas_solicitado: d.gas_solicitado,
+                    estado_recibido: d.estado_recibido, requiere_reparacion: d.requiere_reparacion,
+                    observaciones: d.observaciones,
+                })),
+            });
+            navigate('/recepciones');
+        } catch (err) {
+            setError(err.response?.data?.error || 'Error guardando recepción');
+        } finally { setGuardando(false); }
+    };
+
+    return (
+        <div className="p-3">
+            <h4 className="mb-3">Nueva Recepción de Cilindros</h4>
+            {error && <Alert variant="danger">{error}</Alert>}
+            <Form onSubmit={enviarRecepcion}>
+                <Row>
+                    <Col md={4}>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Comprobante</Form.Label>
+                            <Form.Control value={numeroComprobante} disabled />
+                        </Form.Group>
+                    </Col>
+                    <Col md={4}>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Cliente</Form.Label>
+                            <Form.Select value={idCliente} onChange={e => setIdCliente(e.target.value)} required>
+                                <option value="">Seleccionar cliente</option>
+                                {clientes.map(c => (
+                                    <option key={c.id_cliente} value={c.id_cliente}>{c.razon_social}</option>
+                                ))}
+                            </Form.Select>
+                        </Form.Group>
+                    </Col>
+                    <Col md={4}>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Recepcionista</Form.Label>
+                            <Form.Select value={idRecepcionista} onChange={e => setIdRecepcionista(e.target.value)} required>
+                                <option value="">Seleccionar recepcionista</option>
+                                {recepcionistas.map(t => (
+                                    <option key={t.id_trabajador} value={t.id_trabajador}>{t.nombre}</option>
+                                ))}
+                            </Form.Select>
+                        </Form.Group>
+                    </Col>
+                </Row>
+                <Form.Group className="mb-3">
+                    <Form.Label>Observaciones generales</Form.Label>
+                    <Form.Control as="textarea" rows={2} value={observaciones} onChange={e => setObservaciones(e.target.value)} />
+                </Form.Group>
+
+                <hr />
+                <h5 className="mb-3">Buscar Cilindro</h5>
+                <Row className="mb-3 align-items-end">
+                    <Col md={3}>
+                        <Form.Label>Código del cilindro</Form.Label>
+                        <InputGroup>
+                            <Form.Control value={codigoBusqueda} onChange={e => setCodigoBusqueda(e.target.value)} placeholder="Ej: CIL-001" />
+                            <Button variant="outline-secondary" onClick={buscarCilindro} disabled={buscando}>
+                                {buscando ? <Spinner animation="border" size="sm" /> : '🔍'}
+                            </Button>
+                        </InputGroup>
+                    </Col>
+                    {cilindroActual && (
+                        <>
+                            <Col md={2}>
+                                <Form.Label>Gas actual</Form.Label>
+                                <Form.Control value={cilindroActual.producto?.nombre || ''} disabled />
+                            </Col>
+                            <Col md={2}>
+                                <Form.Label>Propiedad</Form.Label>
+                                <Form.Control value={cilindroActual.propiedad} disabled />
+                            </Col>
+                            <Col md={2}>
+                                <Form.Label>Estado</Form.Label>
+                                <Badge bg={cilindroActual.estado === 'Vacio' ? 'warning' : cilindroActual.estado === 'Lleno' ? 'success' : 'secondary'} className="fs-6">
+                                    {cilindroActual.estado}
+                                </Badge>
+                            </Col>
+                        </>
+                    )}
+                </Row>
+
+                {cilindroActual && (
+                    <Card className="mb-3 p-3 bg-light">
+                        <Row className="mb-2">
+                            <Col>
+                                <Badge bg="info" className="fs-6">
+                                    Gas reconocido: {cilindroActual.producto?.nombre || 'Sin gas'} — Llenado confirmado con este gas
+                                </Badge>
+                            </Col>
+                        </Row>
+                        <Row>
+                            <Col md={3}>
+                                <Form.Label>Gas solicitado (confirmado)</Form.Label>
+                                <Form.Select value={gasSolicitado} onChange={e => setGasSolicitado(e.target.value)}>
+                                    {productos.map(p => <option key={p.id_producto} value={p.id_producto}>{p.nombre}</option>)}
+                                </Form.Select>
+                            </Col>
+                            <Col md={2}>
+                                <Form.Label>Estado recibido</Form.Label>
+                                <Form.Select value={estadoRecibido} onChange={e => setEstadoRecibido(e.target.value)}>
+                                    {estadosRecibido.map(e => <option key={e}>{e}</option>)}
+                                </Form.Select>
+                            </Col>
+                            <Col md={2}>
+                                <Form.Check type="checkbox" label="Requiere reparación" checked={requiereReparacion}
+                                    onChange={e => setRequiereReparacion(e.target.checked)} className="mt-4" />
+                            </Col>
+                            <Col md={3}>
+                                <Form.Label>Observación</Form.Label>
+                                <Form.Control value={observacionCilindro} onChange={e => setObservacionCilindro(e.target.value)} placeholder="Detalle..." />
+                            </Col>
+                            <Col md={2} className="d-flex align-items-end">
+                                <Button variant="primary" type="button" onClick={agregarCilindro} className="w-100">Agregar</Button>
+                            </Col>
+                        </Row>
+                    </Card>
+                )}
+
+                {showCrear && (
+                    <Card className="mb-3 p-3 border-warning">
+                        <h6>Cilindro <code>{codigoBusqueda}</code> no encontrado. Crear nuevo:</h6>
+                        <Row>
+                            <Col md={3}>
+                                <Form.Label>Gas (producto)</Form.Label>
+                                <Form.Select value={nuevoCil.gas} onChange={e => setNuevoCil({...nuevoCil, gas: e.target.value})}>
+                                    <option value="">Seleccionar gas</option>
+                                    {productos.map(p => <option key={p.id_producto} value={p.id_producto}>{p.nombre}</option>)}
+                                </Form.Select>
+                            </Col>
+                            <Col md={2}>
+                                <Form.Label>Capacidad (L)</Form.Label>
+                                <Form.Control type="number" value={nuevoCil.capacidad} onChange={e => setNuevoCil({...nuevoCil, capacidad: e.target.value})} />
+                            </Col>
+                            <Col md={3}>
+                                <Form.Label>Propiedad</Form.Label>
+                                <Form.Select value={nuevoCil.propiedad} onChange={e => setNuevoCil({...nuevoCil, propiedad: e.target.value})}>
+                                    <option value="Propiedad_cliente">Propiedad del cliente</option>
+                                    <option value="Propiedad_empresa">Propiedad de la empresa</option>
+                                    <option value="Tercero">Tercero</option>
+                                </Form.Select>
+                            </Col>
+                            <Col md={4} className="d-flex align-items-end gap-2">
+                                <Button type="button" variant="success" disabled={creando} onClick={crearYAgregar}>
+                                    {creando ? <Spinner animation="border" size="sm" /> : 'Crear y agregar'}
+                                </Button>
+                                <Button type="button" variant="secondary" onClick={() => setShowCrear(false)}>Cancelar</Button>
+                            </Col>
+                        </Row>
+                    </Card>
+                )}
+
+                {detalle.length > 0 && (
+                    <>
+                        <h5 className="mt-4 mb-3">Detalle de recepción ({detalle.length} cilindros)</h5>
+                        <Table striped bordered hover size="sm">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Código</th>
+                                    <th>Gas actual</th>
+                                    <th>Propietario</th>
+                                    <th>Gas solicitado</th>
+                                    <th>Estado recibido</th>
+                                    <th>Reparación</th>
+                                    <th>Observación</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {detalle.map((d, idx) => (
+                                    <tr key={idx}>
+                                        <td>{idx + 1}</td>
+                                        <td><code>{d.codigo_interno}</code></td>
+                                        <td>{d.gas_actual}</td>
+                                        <td>{d.propietario_nombre}</td>
+                                        <td>
+                                            <Form.Select size="sm" value={d.gas_solicitado}
+                                                onChange={e => actualizarCilindro(idx, 'gas_solicitado', e.target.value)}>
+                                                <option value="">Seleccionar</option>
+                                                {productos.map(p => <option key={p.id_producto} value={p.id_producto}>{p.nombre}</option>)}
+                                            </Form.Select>
+                                        </td>
+                                        <td>
+                                            <Form.Select size="sm" value={d.estado_recibido}
+                                                onChange={e => actualizarCilindro(idx, 'estado_recibido', e.target.value)}>
+                                                {estadosRecibido.map(e => <option key={e}>{e}</option>)}
+                                            </Form.Select>
+                                        </td>
+                                        <td className="text-center">
+                                            <Form.Check type="checkbox" checked={d.requiere_reparacion}
+                                                onChange={e => actualizarCilindro(idx, 'requiere_reparacion', e.target.checked)} />
+                                        </td>
+                                        <td>
+                                            <Form.Control size="sm" value={d.observaciones}
+                                                onChange={e => actualizarCilindro(idx, 'observaciones', e.target.value)} />
+                                        </td>
+                                        <td>
+                                            <Button variant="outline-danger" size="sm" onClick={() => quitarCilindro(idx)}>✕</Button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </Table>
+                    </>
+                )}
+
+                <div className="d-flex justify-content-between mt-4">
+                    <Button variant="secondary" type="button" onClick={() => navigate('/recepciones')}>Cancelar</Button>
+                    <Button variant="success" type="submit" disabled={guardando || detalle.length === 0}>
+                        {guardando ? <Spinner animation="border" size="sm" className="me-2" /> : ''}
+                        Registrar Recepción ({detalle.length} cilindros)
+                    </Button>
+                </div>
+            </Form>
+        </div>
+    );
+};
+
+export default NuevaRecepcion;

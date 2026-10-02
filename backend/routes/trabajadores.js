@@ -1,0 +1,11 @@
+const express = require('express');
+const router = express.Router();
+const c = require('../controllers/trabajadorController');
+router.get('/', c.getAll);
+router.get('/cargos', c.getCargos);
+router.get('/cargo/:cargo', c.getByCargo);
+router.get('/:id', c.getById);
+router.post('/', c.create);
+router.put('/:id', c.update);
+router.delete('/:id', c.delete);
+module.exports = router;
