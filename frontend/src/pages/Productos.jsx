@@ -84,7 +84,7 @@ const Productos = () => {
                 <Button variant="primary" onClick={() => { resetForm(); setShowModal(true); }}>Nuevo Producto</Button>
             </div>
 
-            {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
+            {error ? <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert> : null}
 
             <Table striped hover responsive>
                 <thead>

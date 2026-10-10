@@ -62,7 +62,7 @@ const Dashboard = () => {
         <div>
             <h2 className="mb-4">Dashboard</h2>
 
-            {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
+            {error ? <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert> : null}
 
             {/* Resumen de estados de cilindros */}
             <Row className="mb-4">

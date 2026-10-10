@@ -136,7 +136,7 @@ const Entregas = () => {
         <div>
             <h2 className="mb-4">Entregas</h2>
 
-            {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
+            {error ? <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert> : null}
 
             <Row>
                 <Col lg={5} className="mb-4">

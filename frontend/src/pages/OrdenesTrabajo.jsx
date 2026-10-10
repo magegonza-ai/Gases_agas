@@ -117,7 +117,7 @@ const OrdenesTrabajo = () => {
         <div>
             <h2 className="mb-4">Órdenes de Trabajo (Solo Locales)</h2>
 
-            {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
+            {error ? <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert> : null}
 
             <div className="d-flex justify-content-between align-items-center mb-3">
                 <ButtonGroup>

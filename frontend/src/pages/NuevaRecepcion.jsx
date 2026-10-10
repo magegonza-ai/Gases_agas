@@ -237,7 +237,7 @@ const NuevaRecepcion = () => {
     return (
         <div className="p-3">
             <h4 className="mb-3">Nueva Recepción de Cilindros</h4>
-            {error && <Alert variant="danger">{error}</Alert>}
+            {error ? <Alert variant="danger">{error}</Alert> : null}
             <Form onSubmit={enviarRecepcion}>
                 <Row>
                     <Col md={4}>

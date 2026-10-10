@@ -78,7 +78,7 @@ const Clientes = () => {
                 <Button variant="primary" onClick={() => setShowModal(true)}>Nuevo Cliente</Button>
             </div>
 
-            {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
+            {error ? <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert> : null}
 
             <Table striped hover responsive>
                 <thead>

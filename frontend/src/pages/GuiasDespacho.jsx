@@ -139,7 +139,7 @@ const GuiasDespacho = () => {
         <div>
             <h2 className="mb-4">Guías de Despacho (Plantas Externas)</h2>
 
-            {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
+            {error ? <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert> : null}
 
             <Table striped hover responsive>
                 <thead>

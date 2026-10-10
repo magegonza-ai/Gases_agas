@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Alert, Badge, Spinner, ListGroup, Row, Col } from 'react-bootstrap';
+import { useState, useEffect, useMemo } from 'react';
+import { Table, Button, Modal, Form, Alert, Badge, Spinner, ListGroup, Row, Col, Card } from 'react-bootstrap';
 import { envasesAPI, clientesAPI, productosAPI, trabajadoresAPI, plantasExternasAPI } from '../services/api';
+import { useTableFilters, TableFilterPanel } from '../components/TableFilters';
 
 const estadoVariant = {
     'Disponible': 'success',
@@ -48,6 +49,20 @@ const Cilindros = () => {
     const [observaciones, setObservaciones] = useState([]);
     const [obsData, setObsData] = useState({ id_trabajador: '', tipo: 'General', descripcion: '' });
 
+    // Configuración de filtros
+    const filterConfig = {
+        searchFields: ['codigo_interno', 'gas', 'propietario', 'planta_externa'],
+        dateFields: ['fecha_ultimo_llenado', 'fecha_proxima_prueba'],
+        selectFields: ['estado', 'propiedad', 'tipo_llenado', 'prueba_hidraulica'],
+        booleanFields: ['requiere_pintura'],
+        selectOptions: {
+            estado: ['Disponible', 'Vacio', 'En llenado', 'Lleno', 'En reparacion', 'En bodega', 'Entregado', 'En planta externa', 'En OT local', 'Por entregar'],
+            propiedad: ['Propiedad_empresa', 'Propiedad_cliente', 'Tercero'],
+            tipo_llenado: ['Local', 'Externo'],
+            prueba_hidraulica: ['Pendiente', 'Aprobado', 'Rechazado'],
+        },
+    };
+
     useEffect(() => {
         loadAll();
     }, []);
@@ -72,6 +87,9 @@ const Cilindros = () => {
             setLoading(false);
         }
     };
+
+    // Hook de filtros
+    const { filters, filteredData: cilindrosFiltrados, handleSearchChange, handleDateChange, handleSelectChange, handleBooleanChange, clearFilters, hasActiveFilters } = useTableFilters(cilindros, filterConfig);
 
     const handleNuevo = () => {
         setFormData({ codigo_interno: '', id_producto: '', capacidad: '', propiedad: 'Propiedad_empresa', id_propietario: '' });
@@ -164,7 +182,21 @@ const Cilindros = () => {
                 <Button variant="primary" onClick={handleNuevo}>Nuevo Cilindro</Button>
             </div>
 
-            {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
+            {error ? <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert> : null}
+
+            {/* Panel de filtros */}
+            <TableFilterPanel
+                filters={filters}
+                filteredCount={cilindrosFiltrados.length}
+                totalCount={cilindros.length}
+                config={filterConfig}
+                onSearchChange={handleSearchChange}
+                onDateChange={handleDateChange}
+                onSelectChange={handleSelectChange}
+                onBooleanChange={handleBooleanChange}
+                onClear={clearFilters}
+                hasActiveFilters={hasActiveFilters}
+            />
 
             <Table striped hover responsive>
                 <thead>
@@ -183,10 +215,12 @@ const Cilindros = () => {
                     </tr>
                 </thead>
                 <tbody>
-                    {cilindros.length === 0 && (
-                        <tr><td colSpan={11} className="text-center text-muted">No hay cilindros registrados</td></tr>
+                    {cilindrosFiltrados.length === 0 && (
+                        <tr><td colSpan={11} className="text-center text-muted">
+                            {cilindros.length === 0 ? 'No hay cilindros registrados' : 'No hay cilindros que coincidan con los filtros'}
+                        </td></tr>
                     )}
-                    {cilindros.map(c => (
+                    {cilindrosFiltrados.map(c => (
                         <tr key={c.id_envase}>
                             <td className="fw-bold">{c.codigo_interno}</td>
                             <td>{c.gas}</td>
