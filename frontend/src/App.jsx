@@ -9,6 +9,8 @@ import Entregas from './pages/Entregas';
 import Clientes from './pages/Clientes';
 import Productos from './pages/Productos';
 import Trabajadores from './pages/Trabajadores';
+import GuiasDespacho from './pages/GuiasDespacho';
+import PlantasExternas from './pages/PlantasExternas';
 
 function App() {
     return (
@@ -21,8 +23,10 @@ function App() {
                     <Route path="llenados" element={<Llenados />} />
                     <Route path="ordenes-trabajo" element={<OrdenesTrabajo />} />
                     <Route path="entregas" element={<Entregas />} />
+                    <Route path="guias-despacho" element={<GuiasDespacho />} />
                     <Route path="clientes" element={<Clientes />} />
                     <Route path="productos" element={<Productos />} />
+                    <Route path="plantas-externas" element={<PlantasExternas />} />
                     <Route path="trabajadores" element={<Trabajadores />} />
                 </Route>
             </Routes>

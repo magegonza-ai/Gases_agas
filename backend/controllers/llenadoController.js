@@ -7,6 +7,12 @@ const controller = {
     getPendientes: async (req, res) => {
         try { res.json(await Llenado.getPendientesLlenado()); } catch (e) { res.status(500).json({ error: e.message }); }
     },
+    getEnTransito: async (req, res) => {
+        try { res.json(await Llenado.getEnTransito()); } catch (e) { res.status(500).json({ error: e.message }); }
+    },
+    getHistorial: async (req, res) => {
+        try { res.json(await Llenado.getHistorial()); } catch (e) { res.status(500).json({ error: e.message }); }
+    },
     create: async (req, res) => {
         try {
             if (!req.body.id_envase || !req.body.id_llenador || !req.body.gas_llenado || !req.body.cantidad) {

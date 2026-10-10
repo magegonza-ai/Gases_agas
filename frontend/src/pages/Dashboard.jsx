@@ -9,11 +9,20 @@ const estadoVariant = {
     'En bodega': 'info',
     'En reparacion': 'warning',
     'Entregado': 'dark',
+    'En planta externa': 'info',
+    'En OT local': 'warning',
+    'Por entregar': 'primary',
+};
+
+const situacionVariant = {
+    'En llenado externo': 'info',
+    'En reparación/pintura local': 'warning',
+    'Listo para despacho': 'success',
 };
 
 const Dashboard = () => {
     const [resumen, setResumen] = useState([]);
-    const [alertas, setAlertas] = useState([]);
+    const [pendientesEntrega, setPendientesEntrega] = useState([]);
     const [otsPendientes, setOtsPendientes] = useState([]);
     const [recepciones, setRecepciones] = useState([]);
     const [error, setError] = useState('');
@@ -25,14 +34,14 @@ const Dashboard = () => {
 
     const loadAll = async () => {
         try {
-            const [resumenRes, alertasRes, otsRes, recepRes] = await Promise.all([
+            const [resumenRes, pendRes, otsRes, recepRes] = await Promise.all([
                 envasesAPI.getResumen(),
-                productosAPI.getStockAlertas(),
+                envasesAPI.getPendientesEntrega(),
                 ordenesTrabajoAPI.getPending(),
                 recepcionesAPI.getAll(),
             ]);
             setResumen(resumenRes.data);
-            setAlertas(alertasRes.data);
+            setPendientesEntrega(pendRes.data);
             setOtsPendientes(otsRes.data);
             setRecepciones(recepRes.data.slice(0, 6));
         } catch (err) {
@@ -44,12 +53,18 @@ const Dashboard = () => {
 
     if (loading) return <div className="text-center p-5"><Spinner animation="border" /></div>;
 
+    const totalPendientes = pendientesEntrega.length;
+    const enPlantaExterna = pendientesEntrega.filter(c => c.situacion === 'En llenado externo').length;
+    const enOTLocal = pendientesEntrega.filter(c => c.situacion === 'En reparación/pintura local').length;
+    const porEntregar = pendientesEntrega.filter(c => c.situacion === 'Listo para despacho').length;
+
     return (
         <div>
             <h2 className="mb-4">Dashboard</h2>
 
             {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
 
+            {/* Resumen de estados de cilindros */}
             <Row className="mb-4">
                 {resumen.map(item => (
                     <Col md={3} sm={6} key={item.estado} className="mb-3">
@@ -71,10 +86,58 @@ const Dashboard = () => {
                         </Card.Body>
                     </Card>
                 </Col>
+                <Col md={3} sm={6} className="mb-3">
+                    <Card className="text-center h-100 shadow-sm border-primary">
+                        <Card.Body>
+                            <Card.Title as="div" className="display-6 text-primary">{totalPendientes}</Card.Title>
+                            <Card.Text><Badge bg="primary">Por Entregar</Badge></Card.Text>
+                        </Card.Body>
+                    </Card>
+                </Col>
             </Row>
 
+            {/* Cilindros Pendientes de Entrega */}
             <Row>
                 <Col lg={7} className="mb-4">
+                    <Card className="shadow-sm">
+                        <Card.Header as="h5">
+                            <span>Cilindros Pendientes de Entrega ({totalPendientes})</span>
+                            <span className="float-end text-muted small">
+                                Externa: {enPlantaExterna} | OT Local: {enOTLocal} | Listos: {porEntregar}
+                            </span>
+                        </Card.Header>
+                        <Table striped hover responsive className="mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Gas</th>
+                                    <th>Cliente</th>
+                                    <th>Situación</th>
+                                    <th>Planta/OT</th>
+                                    <th>Fecha Recepción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {pendientesEntrega.length === 0 && (
+                                    <tr><td colSpan={6} className="text-center text-success">No hay cilindros pendientes de entrega</td></tr>
+                                )}
+                                {pendientesEntrega.slice(0, 10).map(c => (
+                                    <tr key={c.id_envase}>
+                                        <td className="fw-bold">{c.codigo_interno}</td>
+                                        <td>{c.gas}</td>
+                                        <td>{c.cliente || '-'}</td>
+                                        <td>
+                                            <Badge bg={situacionVariant[c.situacion] || 'secondary'}>{c.situacion}</Badge>
+                                        </td>
+                                        <td>{c.planta_externa || (c.situacion === 'En reparación/pintura local' ? 'OT Local' : '-')}</td>
+                                        <td>{c.fecha_recepcion ? new Date(c.fecha_recepcion).toLocaleDateString() : '-'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </Table>
+                    </Card>
+                </Col>
+                <Col lg={5} className="mb-4">
                     <Card className="shadow-sm">
                         <Card.Header as="h5">Últimas Recepciones</Card.Header>
                         <Table striped hover responsive className="mb-0">
@@ -104,33 +167,50 @@ const Dashboard = () => {
                         </Table>
                     </Card>
                 </Col>
-                <Col lg={5} className="mb-4">
-                    <Card className="shadow-sm">
-                        <Card.Header as="h5">Alertas de Stock</Card.Header>
-                        <Table striped hover responsive className="mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Producto</th>
-                                    <th>Stock</th>
-                                    <th>Mínimo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {alertas.length === 0 && (
-                                    <tr><td colSpan={3} className="text-center text-success">Todo el stock está sobre el mínimo</td></tr>
-                                )}
-                                {alertas.map(p => (
-                                    <tr key={p.id_producto}>
-                                        <td>{p.nombre}</td>
-                                        <td><Badge bg={p.stock_disponible <= 0 ? 'danger' : 'warning'}>{p.stock_disponible}</Badge></td>
-                                        <td>{p.stock_minimo}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </Table>
-                    </Card>
-                </Col>
             </Row>
+
+            {/* OTs con fecha de entrega estimada próxima */}
+            {otsPendientes.length > 0 && (
+                <Row>
+                    <Col lg={12} className="mb-4">
+                        <Card className="shadow-sm">
+                            <Card.Header as="h5">Órdenes de Trabajo con Fecha de Entrega Estimada</Card.Header>
+                            <Table striped hover responsive className="mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Cilindro</th>
+                                        <th>Gas</th>
+                                        <th>Cliente</th>
+                                        <th>Tipo</th>
+                                        <th>F. Est. Entrega</th>
+                                        <th>Estado</th>
+                                        <th>Asignado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {otsPendientes.filter(o => o.fecha_entrega_estimada).slice(0, 10).map(o => (
+                                        <tr key={o.id_orden}>
+                                            <td>{o.id_orden}</td>
+                                            <td className="fw-bold">{o.codigo_interno}</td>
+                                            <td>{o.gas}</td>
+                                            <td>{o.cliente}</td>
+                                            <td>{o.tipo_trabajo}</td>
+                                            <td>
+                                                <Badge bg={new Date(o.fecha_entrega_estimada) < new Date() ? 'danger' : 'primary'}>
+                                                    {new Date(o.fecha_entrega_estimada).toLocaleDateString()}
+                                                </Badge>
+                                            </td>
+                                            <td><Badge bg={estadoVariant[o.estado] || 'secondary'}>{o.estado}</Badge></td>
+                                            <td>{o.asignado_nombre || '-'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </Table>
+                        </Card>
+                    </Col>
+                </Row>
+            )}
         </div>
     );
 };

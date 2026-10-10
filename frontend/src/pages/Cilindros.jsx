@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Alert, Badge, Spinner, ListGroup, Row, Col } from 'react-bootstrap';
-import { envasesAPI, clientesAPI, productosAPI, trabajadoresAPI } from '../services/api';
+import { envasesAPI, clientesAPI, productosAPI, trabajadoresAPI, plantasExternasAPI } from '../services/api';
 
 const estadoVariant = {
     'Disponible': 'success',
@@ -11,6 +11,9 @@ const estadoVariant = {
     'En bodega': 'secondary',
     'Entregado': 'dark',
     'Baja': 'light',
+    'En planta externa': 'info',
+    'En OT local': 'warning',
+    'Por entregar': 'primary',
 };
 
 const propiedadLabel = {
@@ -26,6 +29,7 @@ const Cilindros = () => {
     const [clientes, setClientes] = useState([]);
     const [productos, setProductos] = useState([]);
     const [trabajadores, setTrabajadores] = useState([]);
+    const [plantasExternas, setPlantasExternas] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [guardando, setGuardando] = useState(false);
@@ -50,16 +54,18 @@ const Cilindros = () => {
 
     const loadAll = async () => {
         try {
-            const [cilRes, cliRes, prodRes, trabRes] = await Promise.all([
+            const [cilRes, cliRes, prodRes, trabRes, plaRes] = await Promise.all([
                 envasesAPI.getAll(),
                 clientesAPI.getAll(),
                 productosAPI.getAll(),
                 trabajadoresAPI.getAll(),
+                plantasExternasAPI.getAll(),
             ]);
             setCilindros(cilRes.data.filter(c => c.estado !== 'Baja'));
             setClientes(cliRes.data);
             setProductos(prodRes.data);
             setTrabajadores(trabRes.data.filter(t => t.activo));
+            setPlantasExternas(plaRes.data);
         } catch (err) {
             setError('Error cargando cilindros');
         } finally {
@@ -127,6 +133,30 @@ const Cilindros = () => {
 
     if (loading) return <div className="text-center p-5"><Spinner animation="border" /></div>;
 
+    // Render historial observaciones
+    const renderHistorial = () => {
+        if (observaciones.length === 0) {
+            return <Alert variant="light" className="py-2">Sin observaciones registradas</Alert>;
+        }
+        return (
+            <ListGroup variant="flush" className="border rounded mb-4">
+                {observaciones.map(o => (
+                    <ListGroup.Item key={o.id_observacion}>
+                        <div className="d-flex justify-content-between">
+                            <strong>
+                                <Badge bg={o.tipo === 'Dano' ? 'danger' : o.tipo === 'Reparacion' ? 'success' : 'info'} className="me-2">
+                                    {o.tipo}
+                                </Badge>
+                                {o.descripcion}
+                            </strong>
+                        </div>
+                        <small className="text-muted">{o.trabajador} - {new Date(o.fecha).toLocaleString()}</small>
+                    </ListGroup.Item>
+                ))}
+            </ListGroup>
+        );
+    };
+
     return (
         <div>
             <div className="d-flex justify-content-between align-items-center mb-4">
@@ -145,12 +175,16 @@ const Cilindros = () => {
                         <th>Propiedad</th>
                         <th>Propietario</th>
                         <th>Estado</th>
+                        <th>Tipo Llenado</th>
+                        <th>Planta Ext.</th>
+                        <th>Prueba Hidr.</th>
+                        <th>Pintura</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     {cilindros.length === 0 && (
-                        <tr><td colSpan={7} className="text-center text-muted">No hay cilindros registrados</td></tr>
+                        <tr><td colSpan={11} className="text-center text-muted">No hay cilindros registrados</td></tr>
                     )}
                     {cilindros.map(c => (
                         <tr key={c.id_envase}>
@@ -158,8 +192,20 @@ const Cilindros = () => {
                             <td>{c.gas}</td>
                             <td>{c.capacidad ? `${c.capacidad} L` : '-'}</td>
                             <td>{propiedadLabel[c.propiedad] || c.propiedad}</td>
-                            <td>{c.propietario || (c.propiedad === 'Propiedad_empresa' ? 'GasAgas' : '-')}</td>
+                            <td>{c.propietario || (c.propiedad === 'Propiedad_empresa' ? 'PROMINER' : '-')}</td>
                             <td><Badge bg={estadoVariant[c.estado] || 'secondary'}>{c.estado}</Badge></td>
+                            <td>{c.tipo_llenado ? <Badge bg={c.tipo_llenado === 'Externo' ? 'info' : 'primary'}>{c.tipo_llenado}</Badge> : '-'}</td>
+                            <td>{c.planta_externa || '-'}</td>
+                            <td>
+                                {c.prueba_hidraulica ? (
+                                    <Badge bg={c.prueba_hidraulica === 'Aprobado' ? 'success' : c.prueba_hidraulica === 'Rechazado' ? 'danger' : 'secondary'}>
+                                        {c.prueba_hidraulica}
+                                    </Badge>
+                                ) : '-'}
+                            </td>
+                            <td>
+                                {c.requiere_pintura ? <Badge bg="warning">Sí</Badge> : <Badge bg="secondary">No</Badge>}
+                            </td>
                             <td>
                                 <Button variant="outline-secondary" size="sm" onClick={() => openObservaciones(c)}>Observaciones</Button>
                             </td>
@@ -184,7 +230,7 @@ const Cilindros = () => {
                             />
                         </Form.Group>
                         <Form.Group className="mb-3">
-                            <Form.Label>Producto (Gas Asignado) *</Form.Label>
+                            <Form.Label>Producto (Gas Asignado) * <span className="text-muted small">(Inmutable una vez creado)</span></Form.Label>
                             <Form.Select value={formData.id_producto} onChange={e => setFormData({ ...formData, id_producto: e.target.value })} required>
                                 <option value="">Seleccione un producto...</option>
                                 {productos.map(p => (
@@ -237,25 +283,7 @@ const Cilindros = () => {
                 </Modal.Header>
                 <Modal.Body>
                     <h6 className="mb-2">Historial</h6>
-                    {observaciones.length === 0 ? (
-                        <Alert variant="light" className="py-2">Sin observaciones registradas</Alert>
-                    ) : (
-                        <ListGroup variant="flush" className="border rounded mb-4">
-                            {observaciones.map(o => (
-                                <ListGroup.Item key={o.id_observacion}>
-                                    <div className="d-flex justify-content-between">
-                                        <strong>
-                                            <Badge bg={o.tipo === 'Dano' ? 'danger' : o.tipo === 'Reparacion' ? 'success' : 'info'} className="me-2">
-                                                {o.tipo}
-                                            </Badge>
-                                            {o.descripcion}
-                                        </strong>
-                                    </div>
-                                    <small className="text-muted">{o.trabajador} - {new Date(o.fecha).toLocaleString()}</small>
-                                </ListGroup.Item>
-                            ))}
-                        </ListGroup>
-                    )}
+                    {renderHistorial()}
 
                     <h6 className="mb-2">Nueva Observación</h6>
                     <Form onSubmit={handleAddObservacion}>
@@ -266,7 +294,7 @@ const Cilindros = () => {
                                     <Form.Select value={obsData.id_trabajador} onChange={e => setObsData({ ...obsData, id_trabajador: e.target.value })} required>
                                         <option value="">Seleccione...</option>
                                         {trabajadores.map(t => (
-                                            <option key={t.id_trabajador} value={t.id_trabajador}>{t.nombre} ({t.cargo})</option>
+                                            <option key={t.id_trabajador} value={t.id_trabajador}>{t.nombre} ({t.cargos})</option>
                                         ))}
                                     </Form.Select>
                                 </Form.Group>

@@ -1,9 +1,12 @@
 ﻿import { useState, useEffect } from 'react';
 import { Form, Button, Table, Card, Row, Col, Alert, Badge, InputGroup, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import { clientesAPI, trabajadoresAPI, productosAPI, envasesAPI, recepcionesAPI } from '../services/api';
+import { clientesAPI, trabajadoresAPI, productosAPI, envasesAPI, recepcionesAPI, plantasExternasAPI } from '../services/api';
 
 const estadosRecibido = ['Bueno', 'Regular', 'Danado'];
+const opcionesPruebaHidraulica = ['Pendiente', 'Aprobado', 'Rechazado'];
+const opcionesTipoLlenado = ['Local', 'Externo'];
+
 const generarComprobante = () => {
     const f = new Date();
     const pad = n => String(n).padStart(2, '0');
@@ -15,6 +18,7 @@ const NuevaRecepcion = () => {
     const [clientes, setClientes] = useState([]);
     const [recepcionistas, setRecepcionistas] = useState([]);
     const [productos, setProductos] = useState([]);
+    const [plantasExternas, setPlantasExternas] = useState([]);
     const [idCliente, setIdCliente] = useState('');
     const [idRecepcionista, setIdRecepcionista] = useState('');
     const [numeroComprobante] = useState(generarComprobante);
@@ -25,6 +29,11 @@ const NuevaRecepcion = () => {
     const [gasSolicitado, setGasSolicitado] = useState('');
     const [estadoRecibido, setEstadoRecibido] = useState('Bueno');
     const [requiereReparacion, setRequiereReparacion] = useState(false);
+    const [pruebaHidraulica, setPruebaHidraulica] = useState('Pendiente');
+    const [requierePintura, setRequierePintura] = useState(false);
+    const [tipoLlenado, setTipoLlenado] = useState('Local');
+    const [idPlantaExterna, setIdPlantaExterna] = useState('');
+    const [fechaEntregaEstimada, setFechaEntregaEstimada] = useState('');
     const [observacionCilindro, setObservacionCilindro] = useState('');
     const [showCrear, setShowCrear] = useState(false);
     const [nuevoCil, setNuevoCil] = useState({ gas: '', capacidad: '', propiedad: 'Propiedad_cliente' });
@@ -37,12 +46,16 @@ const NuevaRecepcion = () => {
 
     const loadInitial = async () => {
         try {
-            const [cli, tra, pro] = await Promise.all([
-                clientesAPI.getAll(), trabajadoresAPI.getByCargo('Recepcionista'), productosAPI.getAll()
+            const [cli, tra, pro, pla] = await Promise.all([
+                clientesAPI.getAll(), 
+                trabajadoresAPI.getByCargo('Recepcionista'), 
+                productosAPI.getAll(),
+                plantasExternasAPI.getAll()
             ]);
             setClientes(cli.data);
             setRecepcionistas(tra.data);
             setProductos(pro.data);
+            setPlantasExternas(pla.data);
         } catch (e) { setError('Error cargando datos'); }
     };
 
@@ -58,6 +71,11 @@ const NuevaRecepcion = () => {
             setGasSolicitado(String(res.data.id_producto));
             setEstadoRecibido('Bueno');
             setRequiereReparacion(false);
+            setPruebaHidraulica('Pendiente');
+            setRequierePintura(false);
+            setTipoLlenado('Local');
+            setIdPlantaExterna('');
+            setFechaEntregaEstimada('');
             setObservacionCilindro('');
         } catch (err) {
             setShowCrear(true);
@@ -82,10 +100,15 @@ const NuevaRecepcion = () => {
                 id_envase: res.data.id_envase, codigo_interno: res.data.codigo_interno,
                 gas_actual: prod ? prod.nombre : '', propietario_nombre: nombreProp,
                 gas_solicitado: gasProd, gas_solicitado_nombre: prod ? prod.nombre : '',
-                estado_recibido: 'Bueno', requiere_reparacion: false, observaciones: '',
+                estado_recibido: 'Bueno', requiere_reparacion: false,
+                prueba_hidraulica: 'Pendiente', requiere_pintura: false,
+                tipo_llenado: 'Local', id_planta_externa: null,
+                observaciones: '',
             }]);
             setShowCrear(false); setCilindroActual(null); setCodigoBusqueda('');
-            setGasSolicitado(''); setEstadoRecibido('Bueno'); setRequiereReparacion(false); setObservacionCilindro('');
+            setGasSolicitado(''); setEstadoRecibido('Bueno'); setRequiereReparacion(false);
+            setPruebaHidraulica('Pendiente'); setRequierePintura(false); setTipoLlenado('Local');
+            setIdPlantaExterna(''); setFechaEntregaEstimada(''); setObservacionCilindro('');
         } catch (err) {
             setError(err.response?.data?.error || 'Error creando cilindro');
         } finally { setCreando(false); }
@@ -103,10 +126,14 @@ const NuevaRecepcion = () => {
             gas_actual: cilindroActual.producto?.nombre || '', propietario_nombre: nombreProp,
             gas_solicitado: gasProd, gas_solicitado_nombre: prod ? prod.nombre : '',
             estado_recibido: estadoRecibido, requiere_reparacion: requiereReparacion,
+            prueba_hidraulica: pruebaHidraulica, requiere_pintura: requierePintura,
+            tipo_llenado: tipoLlenado, id_planta_externa: tipoLlenado === 'Externo' ? Number(idPlantaExterna) : null,
+            fecha_entrega_estimada: fechaEntregaEstimada || null,
             observaciones: observacionCilindro,
         }]);
         setCilindroActual(null); setCodigoBusqueda(''); setGasSolicitado(''); setEstadoRecibido('Bueno');
-        setRequiereReparacion(false); setObservacionCilindro(''); setError('');
+        setRequiereReparacion(false); setPruebaHidraulica('Pendiente'); setRequierePintura(false);
+        setTipoLlenado('Local'); setIdPlantaExterna(''); setFechaEntregaEstimada(''); setObservacionCilindro(''); setError('');
     };
 
     const quitarCilindro = (idx) => {
@@ -119,6 +146,9 @@ const NuevaRecepcion = () => {
         if (campo === 'gas_solicitado') {
             const prod = productos.find(p => p.id_producto === Number(valor));
             copia[idx].gas_solicitado_nombre = prod ? prod.nombre : '';
+        }
+        if (campo === 'tipo_llenado' && valor === 'Local') {
+            copia[idx].id_planta_externa = null;
         }
         setDetalle(copia);
     };
@@ -137,6 +167,9 @@ const NuevaRecepcion = () => {
                 detalle: detalle.map(d => ({
                     id_envase: d.id_envase, gas_solicitado: d.gas_solicitado,
                     estado_recibido: d.estado_recibido, requiere_reparacion: d.requiere_reparacion,
+                    prueba_hidraulica: d.prueba_hidraulica, requiere_pintura: d.requiere_pintura,
+                    tipo_llenado: d.tipo_llenado, id_planta_externa: d.id_planta_externa,
+                    fecha_entrega_estimada: d.fecha_entrega_estimada,
                     observaciones: d.observaciones,
                 })),
             });
@@ -227,10 +260,11 @@ const NuevaRecepcion = () => {
                                 </Badge>
                             </Col>
                         </Row>
-                        <Row>
+                        <Row className="mb-2">
                             <Col md={3}>
                                 <Form.Label>Gas solicitado (confirmado)</Form.Label>
-                                <Form.Select value={gasSolicitado} onChange={e => setGasSolicitado(e.target.value)}>
+                                <Form.Select value={gasSolicitado} onChange={e => setGasSolicitado(e.target.value)} disabled>
+                                    <option value="">Seleccionar gas</option>
                                     {productos.map(p => <option key={p.id_producto} value={p.id_producto}>{p.nombre}</option>)}
                                 </Form.Select>
                             </Col>
@@ -241,12 +275,37 @@ const NuevaRecepcion = () => {
                                 </Form.Select>
                             </Col>
                             <Col md={2}>
-                                <Form.Check type="checkbox" label="Requiere reparación" checked={requiereReparacion}
-                                    onChange={e => setRequiereReparacion(e.target.checked)} className="mt-4" />
+                                <Form.Label>Prueba hidráulica</Form.Label>
+                                <Form.Select value={pruebaHidraulica} onChange={e => setPruebaHidraulica(e.target.value)}>
+                                    {opcionesPruebaHidraulica.map(e => <option key={e}>{e}</option>)}
+                                </Form.Select>
+                            </Col>
+                            <Col md={2}>
+                                <Form.Check type="checkbox" label="Requiere pintura" checked={requierePintura}
+                                    onChange={e => setRequierePintura(e.target.checked)} className="mt-4" />
                             </Col>
                             <Col md={3}>
                                 <Form.Label>Observación</Form.Label>
                                 <Form.Control value={observacionCilindro} onChange={e => setObservacionCilindro(e.target.value)} placeholder="Detalle..." />
+                            </Col>
+                        </Row>
+                        <Row className="mb-2">
+                            <Col md={2}>
+                                <Form.Label>Tipo llenado</Form.Label>
+                                <Form.Select value={tipoLlenado} onChange={e => setTipoLlenado(e.target.value)}>
+                                    {opcionesTipoLlenado.map(e => <option key={e}>{e}</option>)}
+                                </Form.Select>
+                            </Col>
+                            <Col md={3}>
+                                <Form.Label>Planta externa</Form.Label>
+                                <Form.Select value={idPlantaExterna} onChange={e => setIdPlantaExterna(e.target.value)} disabled={tipoLlenado !== 'Externo'}>
+                                    <option value="">Seleccionar planta</option>
+                                    {plantasExternas.map(p => <option key={p.id_planta} value={p.id_planta}>{p.razon_social}</option>)}
+                                </Form.Select>
+                            </Col>
+                            <Col md={2}>
+                                <Form.Label>Fecha est. entrega (OT)</Form.Label>
+                                <Form.Control type="date" value={fechaEntregaEstimada} onChange={e => setFechaEntregaEstimada(e.target.value)} />
                             </Col>
                             <Col md={2} className="d-flex align-items-end">
                                 <Button variant="primary" type="button" onClick={agregarCilindro} className="w-100">Agregar</Button>
@@ -299,9 +358,13 @@ const NuevaRecepcion = () => {
                                     <th>Gas actual</th>
                                     <th>Propietario</th>
                                     <th>Gas solicitado</th>
-                                    <th>Estado recibido</th>
-                                    <th>Reparación</th>
-                                    <th>Observación</th>
+                                    <th>Estado rec.</th>
+                                    <th>Prueba hidr.</th>
+                                    <th>Pintura</th>
+                                    <th>Tipo llenado</th>
+                                    <th>Planta ext.</th>
+                                    <th>F. est. entrega</th>
+                                    <th>Obs.</th>
                                     <th></th>
                                 </tr>
                             </thead>
@@ -314,7 +377,7 @@ const NuevaRecepcion = () => {
                                         <td>{d.propietario_nombre}</td>
                                         <td>
                                             <Form.Select size="sm" value={d.gas_solicitado}
-                                                onChange={e => actualizarCilindro(idx, 'gas_solicitado', e.target.value)}>
+                                                onChange={e => actualizarCilindro(idx, 'gas_solicitado', e.target.value)} disabled>
                                                 <option value="">Seleccionar</option>
                                                 {productos.map(p => <option key={p.id_producto} value={p.id_producto}>{p.nombre}</option>)}
                                             </Form.Select>
@@ -325,9 +388,33 @@ const NuevaRecepcion = () => {
                                                 {estadosRecibido.map(e => <option key={e}>{e}</option>)}
                                             </Form.Select>
                                         </td>
+                                        <td>
+                                            <Form.Select size="sm" value={d.prueba_hidraulica}
+                                                onChange={e => actualizarCilindro(idx, 'prueba_hidraulica', e.target.value)}>
+                                                {opcionesPruebaHidraulica.map(e => <option key={e}>{e}</option>)}
+                                            </Form.Select>
+                                        </td>
                                         <td className="text-center">
-                                            <Form.Check type="checkbox" checked={d.requiere_reparacion}
-                                                onChange={e => actualizarCilindro(idx, 'requiere_reparacion', e.target.checked)} />
+                                            <Form.Check type="checkbox" checked={d.requiere_pintura}
+                                                onChange={e => actualizarCilindro(idx, 'requiere_pintura', e.target.checked)} />
+                                        </td>
+                                        <td>
+                                            <Form.Select size="sm" value={d.tipo_llenado}
+                                                onChange={e => actualizarCilindro(idx, 'tipo_llenado', e.target.value)}>
+                                                {opcionesTipoLlenado.map(e => <option key={e}>{e}</option>)}
+                                            </Form.Select>
+                                        </td>
+                                        <td>
+                                            <Form.Select size="sm" value={d.id_planta_externa || ''}
+                                                onChange={e => actualizarCilindro(idx, 'id_planta_externa', e.target.value)}
+                                                disabled={d.tipo_llenado !== 'Externo'}>
+                                                <option value="">Seleccionar</option>
+                                                {plantasExternas.map(p => <option key={p.id_planta} value={p.id_planta}>{p.razon_social}</option>)}
+                                            </Form.Select>
+                                        </td>
+                                        <td>
+                                            <Form.Control size="sm" type="date" value={d.fecha_entrega_estimada || ''}
+                                                onChange={e => actualizarCilindro(idx, 'fecha_entrega_estimada', e.target.value)} />
                                         </td>
                                         <td>
                                             <Form.Control size="sm" value={d.observaciones}

@@ -41,7 +41,7 @@ const Entrega = {
             JOIN detalle_recepciones dr ON l.id_detalle_recepcion = dr.id_detalle
             JOIN recepciones r ON dr.id_recepcion = r.id_recepcion
             JOIN clientes c ON r.id_cliente = c.id_cliente
-            WHERE r.id_cliente = $1 AND e.estado IN ('Lleno', 'En bodega')
+            WHERE r.id_cliente = $1 AND e.estado IN ('Lleno', 'En bodega', 'Por entregar')
             ORDER BY l.fecha_llenado
         `, [idCliente]);
         return result.rows;

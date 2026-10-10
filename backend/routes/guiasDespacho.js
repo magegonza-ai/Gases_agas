@@ -1,0 +1,11 @@
+const express = require('express');
+const router = express.Router();
+const c = require('../controllers/guiaDespachoController');
+router.get('/', c.getAll);
+router.get('/detalle/:idDetalle', c.getByDetalleRecepcion);
+router.get('/:id', c.getById);
+router.post('/', c.create);
+router.put('/:id', c.update);
+router.patch('/:id/recibir', c.recibirEnPlanta);
+router.patch('/:id/retornar', c.retornarDePlanta);
+module.exports = router;

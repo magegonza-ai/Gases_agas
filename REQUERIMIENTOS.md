@@ -1,4 +1,4 @@
-# DOCUMENTO DE REQUERIMIENTOS - SISTEMA GASAGAS
+# DOCUMENTO DE REQUERIMIENTOS - SISTEMA PROMINER
 ## Control de Envases y Llenado de Gases
 
 **Fecha:** 21 de agosto de 2026

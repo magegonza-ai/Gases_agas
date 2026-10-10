@@ -51,6 +51,12 @@ const controller = {
         try {
             res.status(201).json(await Envase.addObservacion(req.body));
         } catch (e) { res.status(500).json({ error: e.message }); }
+    },
+    getParaLlenado: async (req, res) => {
+        try { res.json(await Envase.getParaLlenado()); } catch (e) { res.status(500).json({ error: e.message }); }
+    },
+    getPendientesEntrega: async (req, res) => {
+        try { res.json(await Envase.getPendientesEntrega()); } catch (e) { res.status(500).json({ error: e.message }); }
     }
 };
 

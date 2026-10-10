@@ -4,21 +4,26 @@ import './Layout.css';
 const links = [
     { to: '/', label: 'Dashboard', icon: '📊' },
     { to: '/nueva-recepcion', label: 'Nueva Recepción', icon: '📥' },
-    { to: '/cilindros', label: 'Cilindros', icon: '🛢️' },
     { to: '/llenados', label: 'Llenados', icon: '⛽' },
     { to: '/ordenes-trabajo', label: 'Órdenes de Trabajo', icon: '🔧' },
     { to: '/entregas', label: 'Entregas', icon: '🚚' },
+    { to: '/guias-despacho', label: 'Guías Despacho', icon: '📋' },
     { to: '/clientes', label: 'Clientes', icon: '👥' },
     { to: '/productos', label: 'Productos', icon: '📦' },
+    { to: '/plantas-externas', label: 'Plantas Externas', icon: '🏭' },
     { to: '/trabajadores', label: 'Trabajadores', icon: '👷' },
+    { to: '/cilindros', label: 'Cilindros', icon: '🛢️' },
 ];
 
 const Layout = () => (
     <div className="app-layout">
         <aside className="sidebar">
             <div className="sidebar-brand">
-                <h4>GasAgas</h4>
-                <small className="text-secondary">Gestión de Cilindros</small>
+                <img src="/prominer-logo.png" alt="PROMINER" className="brand-logo" />
+                <div className="brand-text">
+                    <h4>PROMINER</h4>
+                    <small className="text-secondary">Control de Envases</small>
+                </div>
             </div>
             <nav className="sidebar-nav">
                 {links.map(link => (

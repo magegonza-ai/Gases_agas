@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const c = require('../controllers/envaseController');
 router.get('/resumen', c.getResumen);
+router.get('/para-llenado', c.getParaLlenado);
+router.get('/pendientes-entrega', c.getPendientesEntrega);
 router.get('/codigo/:codigo', c.getByCodigo);
 router.get('/', c.getAll);
 router.get('/:id', c.getById);

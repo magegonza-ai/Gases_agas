@@ -40,6 +40,8 @@ export const envasesAPI = {
     updateEstado: (id, estado) => api.patch(`/envases/${id}/estado`, { estado }),
     delete: (id) => api.delete(`/envases/${id}`),
     getResumen: () => api.get('/envases/resumen'),
+    getParaLlenado: () => api.get('/envases/para-llenado'),
+    getPendientesEntrega: () => api.get('/envases/pendientes-entrega'),
     getObservaciones: (id) => api.get(`/envases/${id}/observaciones`),
     addObservacion: (id, data) => api.post(`/envases/${id}/observaciones`, data),
 };
@@ -64,7 +66,28 @@ export const ordenesTrabajoAPI = {
 export const llenadosAPI = {
     getAll: () => api.get('/llenados'),
     getPendientes: () => api.get('/llenados/pendientes'),
+    getEnTransito: () => api.get('/llenados/en-transito'),
+    getHistorial: () => api.get('/llenados/historial'),
     create: (data) => api.post('/llenados', data),
+};
+
+export const plantasExternasAPI = {
+    getAll: () => api.get('/plantas-externas'),
+    getAllIncluyendoInactivas: () => api.get('/plantas-externas/todas'),
+    getById: (id) => api.get(`/plantas-externas/${id}`),
+    create: (data) => api.post('/plantas-externas', data),
+    update: (id, data) => api.put(`/plantas-externas/${id}`, data),
+    delete: (id) => api.delete(`/plantas-externas/${id}`),
+};
+
+export const guiasDespachoAPI = {
+    getAll: () => api.get('/guias-despacho'),
+    getById: (id) => api.get(`/guias-despacho/${id}`),
+    getByDetalleRecepcion: (idDetalle) => api.get(`/guias-despacho/detalle/${idDetalle}`),
+    create: (data) => api.post('/guias-despacho', data),
+    update: (id, data) => api.put(`/guias-despacho/${id}`, data),
+    recibirEnPlanta: (id) => api.patch(`/guias-despacho/${id}/recibir`),
+    retornarDePlanta: (id) => api.patch(`/guias-despacho/${id}/retornar`),
 };
 
 export const entregasAPI = {

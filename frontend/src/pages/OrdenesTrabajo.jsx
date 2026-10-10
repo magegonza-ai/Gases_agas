@@ -20,6 +20,7 @@ const filtros = [
     { valor: 'Pendiente', etiqueta: 'Pendientes' },
     { valor: 'En proceso', etiqueta: 'En proceso' },
     { valor: 'Completada', etiqueta: 'Completadas' },
+    { valor: 'Cancelada', etiqueta: 'Canceladas' },
 ];
 
 const OrdenesTrabajo = () => {
@@ -114,46 +115,65 @@ const OrdenesTrabajo = () => {
 
     return (
         <div>
-            <h2 className="mb-4">Órdenes de Trabajo</h2>
+            <h2 className="mb-4">Órdenes de Trabajo (Solo Locales)</h2>
 
             {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
 
-            <ButtonGroup className="mb-3">
-                {filtros.map(f => (
-                    <Button
-                        key={f.valor}
-                        variant={filtro === f.valor ? 'primary' : 'outline-secondary'}
-                        onClick={() => setFiltro(f.valor)}
-                    >
-                        {f.etiqueta}
-                        {f.valor !== 'Todas' && ` (${ordenes.filter(o => o.estado === f.valor).length})`}
-                    </Button>
-                ))}
-            </ButtonGroup>
+            <div className="d-flex justify-content-between align-items-center mb-3">
+                <ButtonGroup>
+                    {filtros.map(f => (
+                        <Button
+                            key={f.valor}
+                            variant={filtro === f.valor ? 'primary' : 'outline-secondary'}
+                            onClick={() => setFiltro(f.valor)}
+                        >
+                            {f.etiqueta}
+                            {f.valor !== 'Todas' && ` (${ordenes.filter(o => o.estado === f.valor).length})`}
+                        </Button>
+                    ))}
+                </ButtonGroup>
+                <span className="text-muted small">
+                    Total: {ordenes.length} | Prueba Hidráulica: {ordenes.filter(o => o.requiere_prueba_hidraulica).length} | Pintura: {ordenes.filter(o => o.requiere_pintura).length}
+                </span>
+            </div>
 
             <Table striped hover responsive>
                 <thead>
                     <tr>
                         <th>ID</th>
                         <th>Código Cilindro</th>
+                        <th>Gas</th>
+                        <th>Cliente</th>
                         <th>Tipo Trabajo</th>
+                        <th>Prueba Hidr.</th>
+                        <th>Pintura</th>
                         <th>Prioridad</th>
+                        <th>F. Est. Entrega</th>
                         <th>Asignado</th>
                         <th>Estado</th>
-                        <th>Fecha</th>
+                        <th>Fecha Creación</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     {filtradas.length === 0 && (
-                        <tr><td colSpan={8} className="text-center text-muted">No hay órdenes de trabajo para mostrar</td></tr>
+                        <tr><td colSpan={13} className="text-center text-muted">No hay órdenes de trabajo para mostrar</td></tr>
                     )}
                     {filtradas.map(o => (
                         <tr key={o.id_orden}>
                             <td>{o.id_orden}</td>
                             <td className="fw-bold">{o.codigo_interno}</td>
+                            <td>{o.gas}</td>
+                            <td>{o.cliente}</td>
                             <td>{o.tipo_trabajo}</td>
+                            <td>
+                                {o.requiere_prueba_hidraulica ? <Badge bg="warning">Sí</Badge> : <Badge bg="secondary">No</Badge>}
+                            </td>
+                            <td>
+                                {o.requiere_pintura ? <Badge bg="warning">Sí</Badge> : <Badge bg="secondary">No</Badge>}
+                            </td>
                             <td><Badge bg={prioridadVariant[o.prioridad] || 'secondary'}>{o.prioridad}</Badge></td>
+                            <td>{o.fecha_entrega_estimada ? new Date(o.fecha_entrega_estimada).toLocaleDateString() : '-'}</td>
                             <td>{o.asignado_nombre || '-'}</td>
                             <td><Badge bg={estadoVariant[o.estado] || 'secondary'}>{o.estado}</Badge></td>
                             <td>{new Date(o.fecha_creacion).toLocaleDateString()}</td>
@@ -185,7 +205,7 @@ const OrdenesTrabajo = () => {
                             <Form.Select value={idAsignado} onChange={e => setIdAsignado(e.target.value)} required>
                                 <option value="">Seleccione un trabajador...</option>
                                 {trabajadores.map(t => (
-                                    <option key={t.id_trabajador} value={t.id_trabajador}>{t.nombre} ({t.cargo})</option>
+                                    <option key={t.id_trabajador} value={t.id_trabajador}>{t.nombre} ({t.cargos})</option>
                                 ))}
                             </Form.Select>
                         </Form.Group>
