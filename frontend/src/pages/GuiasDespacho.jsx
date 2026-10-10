@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Alert, Badge, Spinner, Row, Col } from 'react-bootstrap';
+import { Table, Button, Modal, Form, Alert, Badge, Spinner, Row, Col, DropdownButton, Dropdown } from 'react-bootstrap';
 import { guiasDespachoAPI } from '../services/api';
+import { generateGuiaDespachoPDF } from '../services/pdfService';
 
 const estadoVariant = {
     'Enviada': 'warning',
@@ -104,6 +105,34 @@ const GuiasDespacho = () => {
         resetForm();
     };
 
+    const handleDownloadPDF = (guia) => {
+        try {
+            const pdf = generateGuiaDespachoPDF(
+                guia,
+                { codigo_interno: guia.codigo_interno, gas: guia.gas, capacidad: '', propiedad: '' },
+                { razon_social: guia.cliente, rut: '', direccion: '', comuna: '' },
+                { razon_social: guia.planta_externa, rut: '', direccion: '', persona_contacto: '', telefono: '', email: '' }
+            );
+            pdf.download(`Guia_Despacho_${guia.numero_guia}.pdf`);
+        } catch (err) {
+            setError('Error generando PDF: ' + err.message);
+        }
+    };
+
+    const handlePrintPDF = (guia) => {
+        try {
+            const pdf = generateGuiaDespachoPDF(
+                guia,
+                { codigo_interno: guia.codigo_interno, gas: guia.gas, capacidad: '', propiedad: '' },
+                { razon_social: guia.cliente, rut: '', direccion: '', comuna: '' },
+                { razon_social: guia.planta_externa, rut: '', direccion: '', persona_contacto: '', telefono: '', email: '' }
+            );
+            pdf.print();
+        } catch (err) {
+            setError('Error imprimiendo PDF: ' + err.message);
+        }
+    };
+
     if (loading) return <div className="text-center p-5"><Spinner animation="border" /></div>;
 
     return (
@@ -151,17 +180,23 @@ const GuiasDespacho = () => {
                             </td>
                             <td><Badge bg={estadoVariant[g.estado] || 'secondary'}>{g.estado}</Badge></td>
                             <td>
-                                {g.estado === 'Enviada' && (
-                                    <Button variant="outline-info" size="sm" className="me-1" onClick={() => handleRecibir(g.id_guia)}>
-                                        Recibir en Planta
-                                    </Button>
-                                )}
-                                {g.estado === 'Recibida' && (
-                                    <Button variant="outline-success" size="sm" className="me-1" onClick={() => handleRetornar(g.id_guia)}>
-                                        Retornar
-                                    </Button>
-                                )}
-                                <Button variant="outline-primary" size="sm" className="me-1" onClick={() => handleEdit(g)}>Editar</Button>
+                                <DropdownButton
+                                    title="Acciones"
+                                    variant="outline-secondary"
+                                    size="sm"
+                                    id={`actions-${g.id_guia}`}
+                                >
+                                    <Dropdown.Item onClick={() => handleDownloadPDF(g)}>⬇ Descargar PDF</Dropdown.Item>
+                                    <Dropdown.Item onClick={() => handlePrintPDF(g)}>🖨 Imprimir</Dropdown.Item>
+                                    <Dropdown.Divider />
+                                    {g.estado === 'Enviada' && (
+                                        <Dropdown.Item onClick={() => handleRecibir(g.id_guia)}>✓ Recibir en Planta</Dropdown.Item>
+                                    )}
+                                    {g.estado === 'Recibida' && (
+                                        <Dropdown.Item onClick={() => handleRetornar(g.id_guia)}>↩ Retornar</Dropdown.Item>
+                                    )}
+                                    <Dropdown.Item onClick={() => handleEdit(g)}>✏ Editar</Dropdown.Item>
+                                </DropdownButton>
                             </td>
                         </tr>
                     ))}

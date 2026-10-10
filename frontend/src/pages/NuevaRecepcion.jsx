@@ -2,6 +2,7 @@
 import { Form, Button, Table, Card, Row, Col, Alert, Badge, InputGroup, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { clientesAPI, trabajadoresAPI, productosAPI, envasesAPI, recepcionesAPI, plantasExternasAPI } from '../services/api';
+import { generateComprobanteRecepcionPDF } from '../services/pdfService';
 
 const estadosRecibido = ['Bueno', 'Regular', 'Danado'];
 const opcionesPruebaHidraulica = ['Pendiente', 'Aprobado', 'Rechazado'];
@@ -41,6 +42,8 @@ const NuevaRecepcion = () => {
     const [error, setError] = useState('');
     const [guardando, setGuardando] = useState(false);
     const [creando, setCreando] = useState(false);
+    const [savedRecepcion, setSavedRecepcion] = useState(null);
+    const [showPdfSuccess, setShowPdfSuccess] = useState(false);
 
     useEffect(() => { loadInitial(); }, []);
 
@@ -161,7 +164,7 @@ const NuevaRecepcion = () => {
         }
         setGuardando(true);
         try {
-            await recepcionesAPI.create({
+            const response = await recepcionesAPI.create({
                 id_cliente: Number(idCliente), id_recepcionista: Number(idRecepcionista),
                 numero_comprobante: numeroComprobante, observaciones,
                 detalle: detalle.map(d => ({
@@ -173,10 +176,62 @@ const NuevaRecepcion = () => {
                     observaciones: d.observaciones,
                 })),
             });
-            navigate('/recepciones');
+            
+            // Guardar datos para PDF
+            const recepcionData = {
+                ...response.data,
+                numero_comprobante: numeroComprobante,
+                cliente: clienteSeleccionado,
+                recepcionista: recepcionistas.find(r => r.id_trabajador === Number(idRecepcionista)),
+                detalle: detalle,
+            };
+            setSavedRecepcion(recepcionData);
+            setShowPdfSuccess(true);
+            
         } catch (err) {
             setError(err.response?.data?.error || 'Error guardando recepción');
         } finally { setGuardando(false); }
+    };
+
+    const handleDownloadComprobante = () => {
+        if (!savedRecepcion) return;
+        try {
+            const pdf = generateComprobanteRecepcionPDF(
+                savedRecepcion,
+                savedRecepcion.detalle,
+                savedRecepcion.cliente,
+                savedRecepcion.recepcionista
+            );
+            pdf.download(`Comprobante_Recepcion_${savedRecepcion.numero_comprobante}.pdf`);
+            setShowPdfSuccess(false);
+        } catch (err) {
+            setError('Error generando PDF: ' + err.message);
+        }
+    };
+
+    const handlePrintComprobante = () => {
+        if (!savedRecepcion) return;
+        try {
+            const pdf = generateComprobanteRecepcionPDF(
+                savedRecepcion,
+                savedRecepcion.detalle,
+                savedRecepcion.cliente,
+                savedRecepcion.recepcionista
+            );
+            pdf.print();
+            setShowPdfSuccess(false);
+        } catch (err) {
+            setError('Error imprimiendo PDF: ' + err.message);
+        }
+    };
+
+    const handleNewRecepcion = () => {
+        setSavedRecepcion(null);
+        setShowPdfSuccess(false);
+        setIdCliente('');
+        setIdRecepcionista('');
+        setObservaciones('');
+        setDetalle([]);
     };
 
     return (
@@ -438,6 +493,28 @@ const NuevaRecepcion = () => {
                     </Button>
                 </div>
             </Form>
+
+        {/* Modal éxito con opciones de PDF */}
+        <Modal show={showPdfSuccess} onHide={handleNewRecepcion} centered>
+            <Modal.Header closeButton>
+                <Modal.Title>✅ Recepción Registrada</Modal.Title>
+            </Modal.Header>
+            <Modal.Body className="text-center">
+                <h5>Comprobante N° {savedRecepcion?.numero_comprobante}</h5>
+                <p className="text-muted mb-4">La recepción se guardó correctamente. ¿Desea descargar o imprimir el comprobante?</p>
+                <div className="d-flex justify-content-center gap-3">
+                    <Button variant="primary" onClick={handleDownloadComprobante} className="me-2">
+                        ⬇ Descargar PDF
+                    </Button>
+                    <Button variant="outline-primary" onClick={handlePrintComprobante}>
+                        🖨 Imprimir
+                    </Button>
+                </div>
+                <Button variant="secondary" className="mt-3" onClick={handleNewRecepcion}>
+                    Nueva Recepción
+                </Button>
+            </Modal.Body>
+        </Modal>
         </div>
     );
 };

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Row, Col, Card, Table, Button, Form, Alert, Badge, Spinner, Modal } from 'react-bootstrap';
+import { Row, Col, Card, Table, Button, Form, Alert, Badge, Spinner, Modal, DropdownButton, Dropdown } from 'react-bootstrap';
 import { entregasAPI, clientesAPI, trabajadoresAPI } from '../services/api';
+import { generateComprobanteEntregaPDF } from '../services/pdfService';
 
 const Entregas = () => {
     const [entregas, setEntregas] = useState([]);
@@ -96,6 +97,36 @@ const Entregas = () => {
             setShowDetalle(true);
         } catch (err) {
             setError('Error cargando detalle de la entrega');
+        }
+    };
+
+    const handleDownloadComprobante = () => {
+        if (!detalle) return;
+        try {
+            const pdf = generateComprobanteEntregaPDF(
+                detalle,
+                detalle.detalle || [],
+                { razon_social: detalle.cliente, rut: detalle.rut, direccion: '', comuna: '' },
+                { nombre: detalle.despachador }
+            );
+            pdf.download(`Comprobante_Entrega_${detalle.numero_documento}.pdf`);
+        } catch (err) {
+            setError('Error generando PDF: ' + err.message);
+        }
+    };
+
+    const handlePrintComprobante = () => {
+        if (!detalle) return;
+        try {
+            const pdf = generateComprobanteEntregaPDF(
+                detalle,
+                detalle.detalle || [],
+                { razon_social: detalle.cliente, rut: detalle.rut, direccion: '', comuna: '' },
+                { nombre: detalle.despachador }
+            );
+            pdf.print();
+        } catch (err) {
+            setError('Error imprimiendo PDF: ' + err.message);
         }
     };
 
@@ -240,6 +271,15 @@ const Entregas = () => {
             <Modal show={showDetalle} onHide={() => setShowDetalle(false)} size="lg">
                 <Modal.Header closeButton>
                     <Modal.Title>Detalle Entrega #{detalle?.id_entrega}</Modal.Title>
+                    <DropdownButton
+                        title="PDF"
+                        variant="outline-secondary"
+                        size="sm"
+                        alignRight
+                    >
+                        <Dropdown.Item onClick={handleDownloadComprobante}>⬇ Descargar Comprobante</Dropdown.Item>
+                        <Dropdown.Item onClick={handlePrintComprobante}>🖨 Imprimir</Dropdown.Item>
+                    </DropdownButton>
                 </Modal.Header>
                 <Modal.Body>
                     {detalle && (
