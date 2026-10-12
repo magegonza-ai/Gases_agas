@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { Form, Button, Table, Card, Row, Col, Alert, Badge, InputGroup, Spinner } from 'react-bootstrap';
+import { Form, Button, Table, Card, Row, Col, Alert, Badge, InputGroup, Spinner, Modal } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { clientesAPI, trabajadoresAPI, productosAPI, envasesAPI, recepcionesAPI, plantasExternasAPI } from '../services/api';
 import { generateComprobanteRecepcionPDF } from '../services/pdfService';
@@ -11,7 +11,8 @@ const opcionesTipoLlenado = ['Local', 'Externo'];
 const generarComprobante = () => {
     const f = new Date();
     const pad = n => String(n).padStart(2, '0');
-    return `REC-${f.getFullYear()}${pad(f.getMonth()+1)}${pad(f.getDate())}-${pad(f.getHours())}${pad(f.getMinutes())}${pad(f.getSeconds())}`;
+    // Formato: REC-YYYYMMDD-#### (el número lo asigna el servidor secuencialmente por día)
+    return `REC-${f.getFullYear()}${pad(f.getMonth()+1)}${pad(f.getDate())}-0000`;
 };
 
 const NuevaRecepcion = () => {
@@ -22,7 +23,7 @@ const NuevaRecepcion = () => {
     const [plantasExternas, setPlantasExternas] = useState([]);
     const [idCliente, setIdCliente] = useState('');
     const [idRecepcionista, setIdRecepcionista] = useState('');
-    const [numeroComprobante] = useState(generarComprobante);
+    const [numeroComprobante, setNumeroComprobante] = useState(generarComprobante);
     const [observaciones, setObservaciones] = useState('');
     const [codigoBusqueda, setCodigoBusqueda] = useState('');
     const [buscando, setBuscando] = useState(false);
@@ -34,6 +35,7 @@ const NuevaRecepcion = () => {
     const [requierePintura, setRequierePintura] = useState(false);
     const [tipoLlenado, setTipoLlenado] = useState('Local');
     const [idPlantaExterna, setIdPlantaExterna] = useState('');
+    const [cantidadLlenado, setCantidadLlenado] = useState('');
     const [fechaEntregaEstimada, setFechaEntregaEstimada] = useState('');
     const [observacionCilindro, setObservacionCilindro] = useState('');
     const [showCrear, setShowCrear] = useState(false);
@@ -47,6 +49,13 @@ const NuevaRecepcion = () => {
 
     useEffect(() => { loadInitial(); }, []);
 
+    const refrescarComprobante = async () => {
+        try {
+            const res = await recepcionesAPI.siguiente();
+            if (res.data?.numero_comprobante) setNumeroComprobante(res.data.numero_comprobante);
+        } catch { setNumeroComprobante(generarComprobante()); }
+    };
+
     const loadInitial = async () => {
         try {
             const [cli, tra, pro, pla] = await Promise.all([
@@ -59,6 +68,7 @@ const NuevaRecepcion = () => {
             setRecepcionistas(tra.data);
             setProductos(pro.data);
             setPlantasExternas(pla.data);
+            refrescarComprobante();
         } catch (e) { setError('Error cargando datos'); }
     };
 
@@ -78,6 +88,7 @@ const NuevaRecepcion = () => {
             setRequierePintura(false);
             setTipoLlenado('Local');
             setIdPlantaExterna('');
+            setCantidadLlenado('');
             setFechaEntregaEstimada('');
             setObservacionCilindro('');
         } catch (err) {
@@ -103,10 +114,11 @@ const NuevaRecepcion = () => {
                 id_envase: res.data.id_envase, codigo_interno: res.data.codigo_interno,
                 gas_actual: prod ? prod.nombre : '', propietario_nombre: nombreProp,
                 gas_solicitado: gasProd, gas_solicitado_nombre: prod ? prod.nombre : '',
+                cantidad_llenado: null, capacidad: res.data.capacidad || null,
                 estado_recibido: 'Bueno', requiere_reparacion: false,
                 prueba_hidraulica: 'Pendiente', requiere_pintura: false,
                 tipo_llenado: 'Local', id_planta_externa: null,
-                observaciones: '',
+                fecha_entrega_estimada: '', observaciones: '',
             }]);
             setShowCrear(false); setCilindroActual(null); setCodigoBusqueda('');
             setGasSolicitado(''); setEstadoRecibido('Bueno'); setRequiereReparacion(false);
@@ -124,10 +136,22 @@ const NuevaRecepcion = () => {
         const gasProd = Number(gasSolicitado);
         const prod = productos.find(p => p.id_producto === gasProd);
         const nombreProp = cilindroActual.propiedad === 'Propiedad_empresa' ? 'Empresa' : (clienteSeleccionado ? clienteSeleccionado.razon_social : '');
+        const capacidadCil = cilindroActual.capacidad ? Number(cilindroActual.capacidad) : null;
+        // La cantidad a llenar es obligatoria: queda registrada en el comprobante y la usa el llenado
+        if (!cantidadLlenado || !(Number(cantidadLlenado) > 0)) {
+            setError('Debe indicar la cantidad a llenar con que se solicita el cilindro');
+            return;
+        }
+        if (capacidadCil && Number(cantidadLlenado) > capacidadCil) {
+            setError(`La cantidad a llenar (${Number(cantidadLlenado)}) no puede ser mayor a la capacidad del cilindro (${capacidadCil} L)`);
+            return;
+        }
         setDetalle([...detalle, {
             id_envase: cilindroActual.id_envase, codigo_interno: cilindroActual.codigo_interno,
             gas_actual: cilindroActual.producto?.nombre || '', propietario_nombre: nombreProp,
             gas_solicitado: gasProd, gas_solicitado_nombre: prod ? prod.nombre : '',
+            cantidad_llenado: cantidadLlenado ? Number(cantidadLlenado) : null,
+            capacidad: capacidadCil,
             estado_recibido: estadoRecibido, requiere_reparacion: requiereReparacion,
             prueba_hidraulica: pruebaHidraulica, requiere_pintura: requierePintura,
             tipo_llenado: tipoLlenado, id_planta_externa: tipoLlenado === 'Externo' ? Number(idPlantaExterna) : null,
@@ -136,7 +160,8 @@ const NuevaRecepcion = () => {
         }]);
         setCilindroActual(null); setCodigoBusqueda(''); setGasSolicitado(''); setEstadoRecibido('Bueno');
         setRequiereReparacion(false); setPruebaHidraulica('Pendiente'); setRequierePintura(false);
-        setTipoLlenado('Local'); setIdPlantaExterna(''); setFechaEntregaEstimada(''); setObservacionCilindro(''); setError('');
+        setTipoLlenado('Local'); setIdPlantaExterna(''); setCantidadLlenado('');
+        setFechaEntregaEstimada(''); setObservacionCilindro(''); setError('');
     };
 
     const quitarCilindro = (idx) => {
@@ -169,6 +194,7 @@ const NuevaRecepcion = () => {
                 numero_comprobante: numeroComprobante, observaciones,
                 detalle: detalle.map(d => ({
                     id_envase: d.id_envase, gas_solicitado: d.gas_solicitado,
+                    cantidad_llenado: d.cantidad_llenado,
                     estado_recibido: d.estado_recibido, requiere_reparacion: d.requiere_reparacion,
                     prueba_hidraulica: d.prueba_hidraulica, requiere_pintura: d.requiere_pintura,
                     tipo_llenado: d.tipo_llenado, id_planta_externa: d.id_planta_externa,
@@ -180,7 +206,7 @@ const NuevaRecepcion = () => {
             // Guardar datos para PDF
             const recepcionData = {
                 ...response.data,
-                numero_comprobante: numeroComprobante,
+                numero_comprobante: response.data.numero_comprobante || numeroComprobante,
                 cliente: clienteSeleccionado,
                 recepcionista: recepcionistas.find(r => r.id_trabajador === Number(idRecepcionista)),
                 detalle: detalle,
@@ -189,7 +215,13 @@ const NuevaRecepcion = () => {
             setShowPdfSuccess(true);
             
         } catch (err) {
-            setError(err.response?.data?.error || 'Error guardando recepción');
+            const msg = err.response?.data?.error || '';
+            if (msg.includes('UNIQUE') && msg.includes('numero_comprobante')) {
+                setError('El número de comprobante ya existía. Se generó uno nuevo, vuelva a registrar.');
+                setNumeroComprobante(generarComprobante());
+            } else {
+                setError(msg || 'Error guardando recepción');
+            }
         } finally { setGuardando(false); }
     };
 
@@ -232,6 +264,8 @@ const NuevaRecepcion = () => {
         setIdRecepcionista('');
         setObservaciones('');
         setDetalle([]);
+        // Generar el siguiente número secuencial del día desde el servidor
+        refrescarComprobante();
     };
 
     return (
@@ -317,11 +351,21 @@ const NuevaRecepcion = () => {
                         </Row>
                         <Row className="mb-2">
                             <Col md={3}>
-                                <Form.Label>Gas solicitado (confirmado)</Form.Label>
-                                <Form.Select value={gasSolicitado} onChange={e => setGasSolicitado(e.target.value)} disabled>
-                                    <option value="">Seleccionar gas</option>
-                                    {productos.map(p => <option key={p.id_producto} value={p.id_producto}>{p.nombre}</option>)}
-                                </Form.Select>
+                                <Form.Label>Gas (confirmado, no editable)</Form.Label>
+                                <Form.Control value={cilindroActual.producto?.nombre || ''} disabled />
+                            </Col>
+                            <Col md={2}>
+                                <Form.Label>Capacidad (L)</Form.Label>
+                                <Form.Control value={cilindroActual.capacidad ?? ''} disabled />
+                            </Col>
+                            <Col md={2}>
+                                <Form.Label>Cantidad a llenar (L)</Form.Label>
+                                <Form.Control type="number" min="1"
+                                    max={cilindroActual.capacidad || undefined}
+                                    value={cantidadLlenado}
+                                    onChange={e => setCantidadLlenado(e.target.value)}
+                                    placeholder={cilindroActual.capacidad ? `máx ${cilindroActual.capacidad}` : 'L'}
+                                />
                             </Col>
                             <Col md={2}>
                                 <Form.Label>Estado recibido</Form.Label>
@@ -329,22 +373,18 @@ const NuevaRecepcion = () => {
                                     {estadosRecibido.map(e => <option key={e}>{e}</option>)}
                                 </Form.Select>
                             </Col>
-                            <Col md={2}>
+                            <Col md={3}>
                                 <Form.Label>Prueba hidráulica</Form.Label>
                                 <Form.Select value={pruebaHidraulica} onChange={e => setPruebaHidraulica(e.target.value)}>
                                     {opcionesPruebaHidraulica.map(e => <option key={e}>{e}</option>)}
                                 </Form.Select>
                             </Col>
+                        </Row>
+                        <Row className="mb-2">
                             <Col md={2}>
                                 <Form.Check type="checkbox" label="Requiere pintura" checked={requierePintura}
                                     onChange={e => setRequierePintura(e.target.checked)} className="mt-4" />
                             </Col>
-                            <Col md={3}>
-                                <Form.Label>Observación</Form.Label>
-                                <Form.Control value={observacionCilindro} onChange={e => setObservacionCilindro(e.target.value)} placeholder="Detalle..." />
-                            </Col>
-                        </Row>
-                        <Row className="mb-2">
                             <Col md={2}>
                                 <Form.Label>Tipo llenado</Form.Label>
                                 <Form.Select value={tipoLlenado} onChange={e => setTipoLlenado(e.target.value)}>
@@ -362,7 +402,20 @@ const NuevaRecepcion = () => {
                                 <Form.Label>Fecha est. entrega (OT)</Form.Label>
                                 <Form.Control type="date" value={fechaEntregaEstimada} onChange={e => setFechaEntregaEstimada(e.target.value)} />
                             </Col>
-                            <Col md={2} className="d-flex align-items-end">
+                            <Col md={3}>
+                                <Form.Label>Observación</Form.Label>
+                                <Form.Control value={observacionCilindro} onChange={e => setObservacionCilindro(e.target.value)} placeholder="Detalle..." />
+                            </Col>
+                        </Row>
+                        <Row className="mb-2">
+                            {tipoLlenado === 'Externo' && (
+                                <Col md={7}>
+                                    <Form.Text className="text-muted">
+                                        ℹ️ Al registrar un cilindro con tipo de llenado <b>externo</b> se generará automáticamente la <b>Guía de Traslado</b> (número secuencial) con la cantidad indicada.
+                                    </Form.Text>
+                                </Col>
+                            )}
+                            <Col md={tipoLlenado === 'Externo' ? 5 : 12} className="d-flex align-items-end justify-content-end">
                                 <Button variant="primary" type="button" onClick={agregarCilindro} className="w-100">Agregar</Button>
                             </Col>
                         </Row>
@@ -412,7 +465,8 @@ const NuevaRecepcion = () => {
                                     <th>Código</th>
                                     <th>Gas actual</th>
                                     <th>Propietario</th>
-                                    <th>Gas solicitado</th>
+                                    <th>Gas</th>
+                                    <th>Cant. llenar (L)</th>
                                     <th>Estado rec.</th>
                                     <th>Prueba hidr.</th>
                                     <th>Pintura</th>
@@ -431,11 +485,17 @@ const NuevaRecepcion = () => {
                                         <td>{d.gas_actual}</td>
                                         <td>{d.propietario_nombre}</td>
                                         <td>
-                                            <Form.Select size="sm" value={d.gas_solicitado}
-                                                onChange={e => actualizarCilindro(idx, 'gas_solicitado', e.target.value)} disabled>
-                                                <option value="">Seleccionar</option>
-                                                {productos.map(p => <option key={p.id_producto} value={p.id_producto}>{p.nombre}</option>)}
-                                            </Form.Select>
+                                            <Form.Control size="sm" value={d.gas_solicitado_nombre} disabled />
+                                        </td>
+                                        <td>
+                                            <Form.Control size="sm" type="number" min="1"
+                                                max={d.capacidad || undefined}
+                                                value={d.cantidad_llenado ?? ''}
+                                                placeholder={d.capacidad ? `máx ${d.capacidad}` : 'L'}
+                                                onChange={e => actualizarCilindro(idx, 'cantidad_llenado', e.target.value)} />
+                                            {!d.cantidad_llenado && (
+                                                <Form.Text className="text-danger">Obligatorio</Form.Text>
+                                            )}
                                         </td>
                                         <td>
                                             <Form.Select size="sm" value={d.estado_recibido}
@@ -482,6 +542,11 @@ const NuevaRecepcion = () => {
                                 ))}
                             </tbody>
                         </Table>
+                        <Alert variant="info" className="py-2 mb-0">
+                            ℹ️ Un cilindro no puede llenarse sin la <b>prueba hidráulica aprobada</b>. Si al recibir
+                            está <b>Pendiente</b> o <b>Rechazada</b>, se generará automáticamente una <b>OT</b> para
+                            realizarla; el cilindro se habilitará para llenado cuando quede <b>Aprobada</b>.
+                        </Alert>
                     </>
                 )}
 

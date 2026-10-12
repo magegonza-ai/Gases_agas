@@ -32,9 +32,11 @@ const OrdenesTrabajo = () => {
     const [guardando, setGuardando] = useState(false);
     const [showIniciar, setShowIniciar] = useState(false);
     const [showCompletar, setShowCompletar] = useState(false);
+    const [showRegistro, setShowRegistro] = useState(false);
+    const [textoAvance, setTextoAvance] = useState('');
     const [seleccionada, setSeleccionada] = useState(null);
     const [idAsignado, setIdAsignado] = useState('');
-    const [formData, setFormData] = useState({ resultado: '', repuestos: '', tiempo_invertido: '' });
+    const [formData, setFormData] = useState({ resultado: '', repuestos: '', tiempo_invertido: '', prueba_hidraulica_resultado: '', pintura_realizada: false });
 
     useEffect(() => {
         loadAll();
@@ -65,8 +67,29 @@ const OrdenesTrabajo = () => {
 
     const openCompletar = (orden) => {
         setSeleccionada(orden);
-        setFormData({ resultado: '', repuestos: '', tiempo_invertido: '' });
+        setFormData({ resultado: '', repuestos: '', tiempo_invertido: '', prueba_hidraulica_resultado: '', pintura_realizada: false });
         setShowCompletar(true);
+    };
+
+    const openRegistro = (orden) => {
+        setSeleccionada(orden);
+        setTextoAvance('');
+        setShowRegistro(true);
+    };
+
+    const handleAgregarAvance = async (e) => {
+        e.preventDefault();
+        setGuardando(true);
+        try {
+            const res = await ordenesTrabajoAPI.registroAvance(seleccionada.id_orden, textoAvance);
+            setSeleccionada(res.data);
+            setTextoAvance('');
+            loadAll();
+        } catch (err) {
+            setError(err.response?.data?.error || 'Error registrando avance');
+        } finally {
+            setGuardando(false);
+        }
     };
 
     const handleIniciar = async (e) => {
@@ -91,6 +114,8 @@ const OrdenesTrabajo = () => {
                 resultado: formData.resultado,
                 repuestos: formData.repuestos,
                 tiempo_invertido: formData.tiempo_invertido ? parseInt(formData.tiempo_invertido) : null,
+                prueba_hidraulica_resultado: formData.prueba_hidraulica_resultado || null,
+                pintura_realizada: formData.pintura_realizada,
             });
             setShowCompletar(false);
             loadAll();
@@ -140,7 +165,7 @@ const OrdenesTrabajo = () => {
             <Table striped hover responsive>
                 <thead>
                     <tr>
-                        <th>ID</th>
+                        <th>N° OT</th>
                         <th>Código Cilindro</th>
                         <th>Gas</th>
                         <th>Cliente</th>
@@ -150,6 +175,7 @@ const OrdenesTrabajo = () => {
                         <th>Prioridad</th>
                         <th>F. Est. Entrega</th>
                         <th>Asignado</th>
+                        <th>Avances</th>
                         <th>Estado</th>
                         <th>Fecha Creación</th>
                         <th>Acciones</th>
@@ -157,27 +183,37 @@ const OrdenesTrabajo = () => {
                 </thead>
                 <tbody>
                     {filtradas.length === 0 && (
-                        <tr><td colSpan={13} className="text-center text-muted">No hay órdenes de trabajo para mostrar</td></tr>
+                        <tr><td colSpan={14} className="text-center text-muted">No hay órdenes de trabajo para mostrar</td></tr>
                     )}
                     {filtradas.map(o => (
                         <tr key={o.id_orden}>
-                            <td>{o.id_orden}</td>
+                            <td className="fw-bold">{o.numero_orden || `OT-#${o.id_orden}`}</td>
                             <td className="fw-bold">{o.codigo_interno}</td>
                             <td>{o.gas}</td>
                             <td>{o.cliente}</td>
                             <td>{o.tipo_trabajo}</td>
                             <td>
-                                {o.requiere_prueba_hidraulica ? <Badge bg="warning">Sí</Badge> : <Badge bg="secondary">No</Badge>}
+                                {o.prueba_hidraulica_resultado
+                                    ? <Badge bg={o.prueba_hidraulica_resultado === 'Aprobado' ? 'success' : 'danger'}>{o.prueba_hidraulica_resultado}</Badge>
+                                    : (o.requiere_prueba_hidraulica ? <Badge bg="warning">Requerida</Badge> : <Badge bg="secondary">No</Badge>)}
                             </td>
                             <td>
-                                {o.requiere_pintura ? <Badge bg="warning">Sí</Badge> : <Badge bg="secondary">No</Badge>}
+                                {o.pintura_realizada
+                                    ? <Badge bg="success">Realizada</Badge>
+                                    : (o.requiere_pintura ? <Badge bg="warning">Requerida</Badge> : <Badge bg="secondary">No</Badge>)}
                             </td>
                             <td><Badge bg={prioridadVariant[o.prioridad] || 'secondary'}>{o.prioridad}</Badge></td>
                             <td>{o.fecha_entrega_estimada ? new Date(o.fecha_entrega_estimada).toLocaleDateString() : '-'}</td>
                             <td>{o.asignado_nombre || '-'}</td>
+                            <td>
+                                {o.registro_horario
+                                    ? `${o.registro_horario.split('\n').length} registro(s)`
+                                    : <span className="text-muted">-</span>}
+                            </td>
                             <td><Badge bg={estadoVariant[o.estado] || 'secondary'}>{o.estado}</Badge></td>
                             <td>{new Date(o.fecha_creacion).toLocaleDateString()}</td>
                             <td>
+                                <Button variant="outline-secondary" size="sm" className="me-2" title="Ver / agregar avances del trabajo" onClick={() => openRegistro(o)}>📋</Button>
                                 {o.estado === 'Pendiente' && (
                                     <Button variant="outline-info" size="sm" className="me-2" onClick={() => openIniciar(o)}>Iniciar</Button>
                                 )}
@@ -196,7 +232,7 @@ const OrdenesTrabajo = () => {
 
             <Modal show={showIniciar} onHide={() => setShowIniciar(false)}>
                 <Modal.Header closeButton>
-                    <Modal.Title>Iniciar OT #{seleccionada?.id_orden} - {seleccionada?.codigo_interno}</Modal.Title>
+                    <Modal.Title>Iniciar OT {seleccionada?.numero_orden || `#${seleccionada?.id_orden}`} - {seleccionada?.codigo_interno}</Modal.Title>
                 </Modal.Header>
                 <Form onSubmit={handleIniciar}>
                     <Modal.Body>
@@ -221,10 +257,43 @@ const OrdenesTrabajo = () => {
 
             <Modal show={showCompletar} onHide={() => setShowCompletar(false)}>
                 <Modal.Header closeButton>
-                    <Modal.Title>Completar OT #{seleccionada?.id_orden} - {seleccionada?.codigo_interno}</Modal.Title>
+                    <Modal.Title>Completar OT {seleccionada?.numero_orden || `#${seleccionada?.id_orden}`} - {seleccionada?.codigo_interno}</Modal.Title>
                 </Modal.Header>
                 <Form onSubmit={handleCompletar}>
                     <Modal.Body>
+                        <Form.Text className="text-muted d-block mb-3">
+                            ℹ️ Al completar la OT, el cilindro quedará <b>liberado para su llenado</b>.
+                        </Form.Text>
+                        {seleccionada?.requiere_prueba_hidraulica && (
+                            <Form.Group className="mb-3">
+                                <Form.Label>Resultado Prueba Hidráulica *</Form.Label>
+                                <Form.Select
+                                    value={formData.prueba_hidraulica_resultado}
+                                    onChange={e => setFormData({ ...formData, prueba_hidraulica_resultado: e.target.value })}
+                                    required
+                                >
+                                    <option value="">Seleccionar resultado...</option>
+                                    <option value="Aprobado">Aprobado</option>
+                                    <option value="Rechazado">Rechazado</option>
+                                </Form.Select>
+                                <Form.Text className="text-danger d-block">
+                                    La prueba hidráulica debe quedar <b>Aprobada</b> para poder completar la OT.
+                                </Form.Text>
+                            </Form.Group>
+                        )}
+                        {seleccionada?.requiere_pintura && (
+                            <Form.Group className="mb-3">
+                                <Form.Check
+                                    type="checkbox"
+                                    label="Confirmo que la pintura fue realizada"
+                                    checked={formData.pintura_realizada}
+                                    onChange={e => setFormData({ ...formData, pintura_realizada: e.target.checked })}
+                                />
+                                <Form.Text className="text-muted d-block">
+                                    Debe confirmar la pintura para poder completar la OT.
+                                </Form.Text>
+                            </Form.Group>
+                        )}
                         <Form.Group className="mb-3">
                             <Form.Label>Resultado *</Form.Label>
                             <Form.Control
@@ -260,6 +329,43 @@ const OrdenesTrabajo = () => {
                         </Button>
                     </Modal.Footer>
                 </Form>
+            </Modal>
+
+            <Modal show={showRegistro} onHide={() => setShowRegistro(false)} size="lg">
+                <Modal.Header closeButton>
+                    <Modal.Title>Registro de Avances - OT {seleccionada?.numero_orden || `#${seleccionada?.id_orden}`} ({seleccionada?.codigo_interno})</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {seleccionada?.registro_horario ? (
+                        <pre className="bg-light p-3 rounded" style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: '0.9rem' }}>
+                            {seleccionada.registro_horario}
+                        </pre>
+                    ) : (
+                        <p className="text-muted">Aún no hay avances registrados.</p>
+                    )}
+                    {seleccionada?.estado === 'En proceso' && (
+                        <Form onSubmit={handleAgregarAvance}>
+                            <Form.Group className="mb-2">
+                                <Form.Label>Nuevo avance (se registrará con fecha y hora)</Form.Label>
+                                <Form.Control
+                                    as="textarea" rows={2}
+                                    value={textoAvance}
+                                    onChange={e => setTextoAvance(e.target.value)}
+                                    placeholder="Ej: Se reemplazó la válvula; 14:30 prueba de estanqueidad ok..."
+                                />
+                            </Form.Group>
+                            <Button variant="primary" type="submit" disabled={guardando || !textoAvance.trim()}>
+                                {guardando ? 'Registrando...' : '+ Agregar avance'}
+                            </Button>
+                        </Form>
+                    )}
+                    {seleccionada?.estado === 'Completada' && (
+                        <Form.Text className="text-muted">OT completada: el registro es de solo lectura.</Form.Text>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowRegistro(false)}>Cerrar</Button>
+                </Modal.Footer>
             </Modal>
         </div>
     );

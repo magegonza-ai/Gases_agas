@@ -1,0 +1,31 @@
+# ============================================================
+#  PROMINER - exclusiones de git
+# ============================================================
+
+# Dependencias
+node_modules/
+
+# Artefactos de compilación / distribución
+*.zip
+*.tar
+*.tar.gz
+frontend/dist/
+frontend/dist-*/
+dist-electron/
+dist-portable/
+
+# Base de datos local de trabajo (no versionar)
+backend/data/
+
+# Registros
+*.log
+
+# Variables de entorno
+.env
+backend/.env
+
+# Sistema / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

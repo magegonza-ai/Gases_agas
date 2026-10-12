@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Form, Row, Col, Button, InputGroup, DropdownButton, Dropdown } from 'react-bootstrap';
+import { Card, Badge, Form, Row, Col, Button, InputGroup, DropdownButton, Dropdown } from 'react-bootstrap';
 
 // ============================================
 // COMPONENTE: Filtros Avanzados para Tablas

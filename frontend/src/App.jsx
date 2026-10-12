@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './layouts/Layout';
 import Dashboard from './pages/Dashboard';
 import NuevaRecepcion from './pages/NuevaRecepcion';
+import Recepciones from './pages/Recepciones';
 import Cilindros from './pages/Cilindros';
 import Llenados from './pages/Llenados';
 import OrdenesTrabajo from './pages/OrdenesTrabajo';
@@ -19,6 +20,7 @@ function App() {
                 <Route path="/" element={<Layout />}>
                     <Route index element={<Dashboard />} />
                     <Route path="nueva-recepcion" element={<NuevaRecepcion />} />
+                    <Route path="recepciones" element={<Recepciones />} />
                     <Route path="cilindros" element={<Cilindros />} />
                     <Route path="llenados" element={<Llenados />} />
                     <Route path="ordenes-trabajo" element={<OrdenesTrabajo />} />

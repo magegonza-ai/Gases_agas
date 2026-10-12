@@ -16,9 +16,10 @@ const controller = {
     },
     create: async (req, res) => {
         try {
-            if (!req.body.id_detalle_recepcion || !req.body.id_planta_externa || !req.body.numero_guia) {
-                return res.status(400).json({ error: 'Detalle recepción, planta y número de guía requeridos' });
+            if (!req.body.id_detalle_recepcion || !req.body.id_planta_externa) {
+                return res.status(400).json({ error: 'Detalle recepción y planta requeridos' });
             }
+            // numero_guia opcional: si no viene, se genera secuencialmente (GUIA-00001, ...)
             res.status(201).json(await GuiaDespacho.create(req.body));
         } catch (e) { res.status(500).json({ error: e.message }); }
     },
@@ -38,7 +39,7 @@ const controller = {
     },
     retornarDePlanta: async (req, res) => {
         try {
-            const g = await GuiaDespacho.retornarDePlanta(req.params.id);
+            const g = await GuiaDespacho.retornarDePlanta(req.params.id, req.body);
             if (!g) return res.status(404).json({ error: 'Guía de despacho no encontrada' });
             res.json(g);
         } catch (e) { res.status(500).json({ error: e.message }); }

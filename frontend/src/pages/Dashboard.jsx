@@ -46,6 +46,7 @@ const Dashboard = () => {
             setRecepciones(recepRes.data.slice(0, 6));
         } catch (err) {
             setError('Error cargando datos del dashboard');
+            console.error('Dashboard load error:', err);
         } finally {
             setLoading(false);
         }

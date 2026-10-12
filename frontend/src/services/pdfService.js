@@ -1,7 +1,8 @@
 import pdfMake from 'pdfmake/build/pdfmake';
 import pdfFonts from 'pdfmake/build/vfs_fonts';
 
-pdfMake.vfs = pdfFonts.pdfMake.vfs;
+// En pdfmake v0.3+, vfs_fonts exporta el VFS directamente
+pdfMake.vfs = pdfFonts.vfs || pdfFonts.pdfMake?.vfs || pdfFonts.default?.vfs || pdfFonts.default?.pdfMake?.vfs;
 
 // ============================================
 // UTILIDADES
@@ -98,6 +99,8 @@ export const generateGuiaDespachoPDF = (guia, cilindro, cliente, planta) => {
                             infoRow('Estado', guia.estado),
                             infoRow('Prueba Hidráulica', guia.prueba_hidraulica_resultado || 'Pendiente'),
                             infoRow('Fecha Recepción Planta', formatDateTime(guia.fecha_recepcion_planta)),
+                            infoRow('Cantidad Llenada (L)', guia.cantidad_llenada != null ? String(guia.cantidad_llenada) : '-'),
+                            infoRow('Fecha Retorno', formatDateTime(guia.fecha_retorno)),
                         ],
                     },
                 ],
@@ -124,23 +127,28 @@ export const generateGuiaDespachoPDF = (guia, cilindro, cliente, planta) => {
             {
                 table: {
                     ...tableStyle,
-                    widths: ['30%', '30%', '20%', '20%'],
+                    widths: ['22%', '20%', '18%', '20%', '20%'],
                     body: [
                         [
                             { text: 'Código', style: 'tableHeader' },
                             { text: 'Gas', style: 'tableHeader' },
                             { text: 'Capacidad (L)', style: 'tableHeader' },
+                            { text: 'Cantidad a llenar (L)', style: 'tableHeader' },
                             { text: 'Propiedad', style: 'tableHeader' },
                         ],
                         [
                             { text: cilindro?.codigo_interno, style: 'tableCellCenter' },
                             { text: cilindro?.gas, style: 'tableCell' },
                             { text: cilindro?.capacidad, style: 'tableCellCenter' },
+                            { text: cilindro?.cantidad, style: 'tableCellCenter' },
                             { text: cilindro?.propiedad, style: 'tableCellCenter' },
                         ],
                     ],
                 },
             },
+
+            guia.trabajos_realizados && sectionTitle('TRABAJOS REALIZADOS EN PLANTA EXTERNA'),
+            guia.trabajos_realizados && { text: guia.trabajos_realizados, style: 'value', margin: [0, 0, 0, 10] },
 
             guia.observaciones && sectionTitle('OBSERVACIONES'),
             guia.observaciones && { text: guia.observaciones, style: 'value', margin: [0, 0, 0, 10] },
@@ -217,13 +225,13 @@ export const generateComprobanteRecepcionPDF = (recepcion, detalle, cliente, rec
             {
                 table: {
                     ...tableStyle,
-                    widths: ['10%', '20%', '15%', '15%', '15%', '10%', '15%'],
+                    widths: ['8%', '18%', '18%', '14%', '14%', '14%', '14%'],
                     body: [
                         [
                             { text: '#', style: 'tableHeader' },
                             { text: 'Código', style: 'tableHeader' },
-                            { text: 'Gas Actual', style: 'tableHeader' },
-                            { text: 'Gas Solicitado', style: 'tableHeader' },
+                            { text: 'Gas', style: 'tableHeader' },
+                            { text: 'Cant. a llenar (L)', style: 'tableHeader' },
                             { text: 'Estado Recibido', style: 'tableHeader' },
                             { text: 'Prueba Hidr.', style: 'tableHeader' },
                             { text: 'Tipo Llenado', style: 'tableHeader' },
@@ -231,8 +239,8 @@ export const generateComprobanteRecepcionPDF = (recepcion, detalle, cliente, rec
                         ...detalle.map((d, i) => [
                             { text: String(i + 1), style: 'tableCellCenter' },
                             { text: d.codigo_interno, style: 'tableCellCenter' },
-                            { text: d.gas_actual || d.gas_nombre, style: 'tableCell' },
-                            { text: d.gas_solicitado_nombre, style: 'tableCell' },
+                            { text: d.gas_actual || d.gas_nombre || d.gas_solicitado_nombre, style: 'tableCell' },
+                            { text: d.cantidad_llenado != null ? String(d.cantidad_llenado) : '-', style: 'tableCellCenter' },
                             { text: d.estado_recibido, style: 'tableCellCenter' },
                             { text: d.prueba_hidraulica, style: 'tableCellCenter' },
                             { text: d.tipo_llenado, style: 'tableCellCenter' },

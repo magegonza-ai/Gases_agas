@@ -6,6 +6,7 @@ router.get('/', c.getAll);
 router.get('/:id', c.getById);
 router.post('/', c.create);
 router.patch('/:id/iniciar', c.start);
+router.patch('/:id/registro', c.registroAvance);
 router.patch('/:id/completar', c.complete);
 router.patch('/:id/cancelar', c.cancel);
 module.exports = router;

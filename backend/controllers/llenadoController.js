@@ -15,8 +15,9 @@ const controller = {
     },
     create: async (req, res) => {
         try {
-            if (!req.body.id_envase || !req.body.id_llenador || !req.body.gas_llenado || !req.body.cantidad) {
-                return res.status(400).json({ error: 'Envase, llenador, gas y cantidad requeridos' });
+            // La cantidad NO se pide aquí: proviene del comprobante de recepción (detalle)
+            if (!req.body.id_detalle_recepcion || !req.body.id_envase || !req.body.id_llenador || !req.body.gas_llenado) {
+                return res.status(400).json({ error: 'Detalle de recepción, envase, llenador y gas requeridos' });
             }
             res.status(201).json(await Llenado.create(req.body));
         } catch (e) { res.status(500).json({ error: e.message }); }

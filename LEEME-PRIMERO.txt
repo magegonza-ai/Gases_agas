@@ -1,0 +1,94 @@
+========================================================================
+                    PROMINER - CONTROL DE ENVASES
+              GUIA DE INSTALACION EN OTRO COMPUTADOR
+========================================================================
+
+Este paquete es PORTABLE: NO necesita instalar Node.js ni nada mas.
+Todo lo necesario (programa, servidor e interfaz) ya viene incluido.
+
+------------------------------------------------------------------------
+PARTE 1 - PASAR EL PROGRAMA A UN PENDRIVE (desde este computador)
+------------------------------------------------------------------------
+
+1) Asegurese de tener el servidor DETENIDO en este computador
+   (use el boton "Cerrar aplicacion" dentro del programa, o ejecute
+    detener.bat).
+
+2) Genere el paquete comprimido:
+      - Doble clic en:  crear-portable.bat
+      - Al terminar aparecera el archivo:
+            PROMINER-Portable-v2.1.0.zip
+
+3) Copie el archivo PROMINER-Portable-v2.1.0.zip a un PENDRIVE.
+   El pendrive debe tener al menos ~400 MB libres.
+
+4) Expulse el pendrive de forma segura antes de retirarlo.
+
+------------------------------------------------------------------------
+PARTE 2 - INSTALAR EN EL OTRO COMPUTADOR (de cero)
+------------------------------------------------------------------------
+
+5) Conecte el pendrive en el otro computador.
+
+6) Cree una carpeta, por ejemplo:   C:\PROMINER
+   (Importante: NO lo ejecute desde dentro del ZIP ni del pendrive.)
+
+7) Copie PROMINER-Portable-v2.1.0.zip a  C:\PROMINER  y DESCOMPRIMA
+   (clic derecho > Extraer todo...). Debe quedar asi:
+
+        C:\PROMINER\
+            iniciar.bat
+            detener.bat
+            limpiar.bat
+            node.exe
+            schema_sqlite.sql
+            backend\        (incluye la base de datos)
+            frontend\dist\  (la interfaz)
+
+8) Inicie el programa con DOBLE CLIC en:   iniciar.bat
+
+   - Se abre una ventana negra "PROMINER Server" (son los registros;
+     dejala abierta mientras usa el programa).
+   - Se abre el navegador automaticamente en:  http://localhost:3000
+
+   Si el navegador no se abre solo, escriba en la barra de direcciones:
+        http://localhost:3000
+
+------------------------------------------------------------------------
+PARTE 3 - USO Y CIERRE
+------------------------------------------------------------------------
+
+9) Para CERRAR el programa:
+      - Use el boton rojo "Cerrar aplicacion" (abajo a la izquierda
+        en el menu), o
+      - Doble clic en:  detener.bat
+      - Tambien puede cerrar la ventana negra "PROMINER Server".
+
+10) Para volver a usar el programa: ejecute nuevamente  iniciar.bat.
+
+------------------------------------------------------------------------
+ATENCION / PREGUNTAS FRECUENTES
+------------------------------------------------------------------------
+
+- "Windows protegio tu PC" (SmartScreen): pulse "Mas informacion" y
+  luego "Ejecutar de todas formas". Es normal porque el .zip no esta
+  firmado digitalmente.
+
+- Todos los datos quedan guardados en:
+        backend\data\prominer.db
+  Para respaldar, copie ese archivo cuando el programa este CERRADO.
+
+- El paquete sale con los catalogos de ejemplo (clientes, trabajadores,
+  productos, plantas) y SIN movimientos (recepciones, guias, llenados,
+  etc.), listo para comenzar a usarlo.
+
+- Si desea dejar SOLO los catalogos y borrar todos los movimientos
+  (para reiniciar la operacion), use:   limpiar.bat
+  (Pida confirmacion escribiendo SI. No se puede deshacer.)
+
+- No mueva ni separe los archivos: el programa necesita que
+  iniciar.bat, node.exe, backend\ y frontend\ esten juntos.
+
+========================================================================
+                       PROMINER - Control de Envases
+========================================================================

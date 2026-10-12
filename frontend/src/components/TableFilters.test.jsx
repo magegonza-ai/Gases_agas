@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { useTableFilters, TableFilterPanel } from './TableFilters';
-import { act } from 'react';
+import { useEffect } from 'react';
 
 // Test component for useTableFilters hook
 const TestComponent = ({ data, config }) => {
@@ -90,33 +90,66 @@ describe('TableFilterPanel', () => {
     },
   };
 
+  // Helper component that uses the hook and renders TableFilterPanel
+  const TestPanel = ({ 
+    data = mockData, 
+    config = filterConfig, 
+    filteredCount = 1, 
+    totalCount = 3,
+    initialSearch = ''
+  }) => {
+    const { 
+      filters, 
+      handleSearchChange, 
+      handleDateChange, 
+      handleSelectChange, 
+      handleBooleanChange, 
+      clearFilters, 
+      hasActiveFilters 
+    } = useTableFilters(data, config);
+
+    // Apply initial search if provided - use useEffect to avoid infinite loop
+    useEffect(() => {
+      if (initialSearch) {
+        handleSearchChange({ target: { value: initialSearch } });
+      }
+    }, [initialSearch]);
+
+    return (
+      <TableFilterPanel 
+        filters={filters} 
+        filteredCount={filteredCount} 
+        totalCount={totalCount} 
+        config={config} 
+        onSearchChange={handleSearchChange} 
+        onDateChange={handleDateChange} 
+        onSelectChange={handleSelectChange} 
+        onBooleanChange={handleBooleanChange} 
+        onClear={clearFilters} 
+        hasActiveFilters={hasActiveFilters} 
+      />
+    );
+  };
+
   it('renders search input when searchFields provided', () => {
-    const { filters, handleSearchChange, hasActiveFilters, clearFilters } = useTableFilters(mockData, filterConfig);
-    render(<TableFilterPanel filters={filters} filteredCount={1} totalCount={3} config={filterConfig} onSearchChange={handleSearchChange} onClear={clearFilters} hasActiveFilters={hasActiveFilters} />);
+    render(<TestPanel />);
     expect(screen.getByPlaceholderText('Buscar en campos de texto...')).toBeInTheDocument();
   });
 
   it('renders date inputs when dateFields provided', () => {
-    const { filters, handleSearchChange, handleDateChange, handleSelectChange, handleBooleanChange, hasActiveFilters, clearFilters } = useTableFilters(mockData, filterConfig);
-    render(<TableFilterPanel filters={filters} filteredCount={1} totalCount={3} config={filterConfig} onSearchChange={handleSearchChange} onDateChange={handleDateChange} onSelectChange={handleSelectChange} onBooleanChange={handleBooleanChange} onClear={clearFilters} hasActiveFilters={hasActiveFilters} />);
+    render(<TestPanel />);
     expect(screen.getByLabelText('fecha_recepcion (desde)')).toBeInTheDocument();
     expect(screen.getByLabelText('fecha_recepcion (hasta)')).toBeInTheDocument();
   });
 
   it('renders select when selectFields provided', () => {
-    const { filters, handleSearchChange, handleDateChange, handleSelectChange, handleBooleanChange, hasActiveFilters, clearFilters } = useTableFilters(mockData, filterConfig);
-    render(<TableFilterPanel filters={filters} filteredCount={1} totalCount={3} config={filterConfig} onSearchChange={handleSearchChange} onDateChange={handleDateChange} onSelectChange={handleSelectChange} onBooleanChange={handleBooleanChange} onClear={clearFilters} hasActiveFilters={hasActiveFilters} />);
+    render(<TestPanel />);
     expect(screen.getByLabelText('estado')).toBeInTheDocument();
     expect(screen.getByLabelText('tipo_llenado')).toBeInTheDocument();
   });
 
   it('shows active badge when filters active', () => {
-    const { filters, handleSearchChange, handleDateChange, handleSelectChange, handleBooleanChange, clearFilters, hasActiveFilters } = useTableFilters(mockData, filterConfig);
-    // Set a filter to make it active
-    act(() => {
-      handleSearchChange({ target: { value: 'test' } });
-    });
-    render(<TableFilterPanel filters={filters} filteredCount={1} totalCount={3} config={filterConfig} onSearchChange={handleSearchChange} onDateChange={handleDateChange} onSelectChange={handleSelectChange} onBooleanChange={handleBooleanChange} onClear={clearFilters} hasActiveFilters={hasActiveFilters} />);
+    render(<TestPanel initialSearch='test' />);
     expect(screen.getByText('Activos')).toBeInTheDocument();
   });
 });

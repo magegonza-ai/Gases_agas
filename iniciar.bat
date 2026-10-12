@@ -1,59 +1,91 @@
 @echo off
-title GasAgas v2.0 - Sistema de Control de Envases
+setlocal
+title PROMINER - Control de Envases
 color 0A
+cd /d "%~dp0"
 
 echo ============================================
-echo    GASAGAS v2.0 - Control de Envases
+echo    PROMINER - Control de Envases
 echo ============================================
 echo.
 
-echo [1/4] Verificando PostgreSQL...
-sc query postgresql-x64-18 | find "RUNNING" >nul
-if %errorlevel% neq 0 (
-    echo      PostgreSQL no esta corriendo. Iniciando...
-    net start postgresql-x64-18
-    timeout /t 3 >nul
+REM 1) Verificar Node (local primero, luego sistema)
+set "NODE_CMD=node"
+if exist "%~dp0node.exe" (
+    set "NODE_CMD=%~dp0node.exe"
+    echo [OK] Usando Node.js portable: %~dp0node.exe
 ) else (
-    echo      PostgreSQL OK
+    where node >nul 2>&1
+    if errorlevel 1 (
+        echo [ERROR] No se encuentra Node.js
+        echo Instale Node.js 18+ desde https://nodejs.org
+        pause
+        exit /b 1
+    )
+    for /f "delims=" %%v in ('node --version') do echo [OK] Node.js %%v
 )
+
 echo.
 
-echo [2/4] Verificando conexion a base de datos...
-set PGPASSWORD=admin
-"C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h 127.0.0.1 -p 5432 -d control_envases -c "SELECT 1" >nul 2>&1
-if %errorlevel% neq 0 (
-    echo      ERROR: No se pudo conectar a la base de datos
-    echo      Verifique que PostgreSQL este corriendo en puerto 5432
+REM 2) Backend deps
+if not exist "backend\node_modules\" (
+    echo [1/3] Instalando dependencias del backend...
+    pushd backend
+    call npm install --silent
+    if errorlevel 1 ( popd & pause & exit /b 1 )
+    popd
+) else (
+    echo [1/3] Dependencias backend OK
+)
+
+REM 3) Frontend deps
+if not exist "frontend\node_modules\" (
+    echo [2/3] Instalando dependencias del frontend...
+    pushd frontend
+    call npm install --silent
+    if errorlevel 1 ( popd & pause & exit /b 1 )
+    popd
+) else (
+    echo [2/3] Dependencias frontend OK
+)
+
+REM 4) Compilar frontend
+echo [3/3] Compilando interfaz...
+pushd frontend
+call npm run build
+if errorlevel 1 (
+    echo [ERROR] Fallo al compilar el frontend
+    popd
     pause
     exit /b 1
 )
-echo      Base de datos OK
+popd
+echo      Interfaz compilada correctamente
 echo.
 
-echo [3/4] Iniciando Backend (puerto 3000)...
-start "GasAgas Backend" cmd /c "cd /d C:\proyectos\Gases_agas\backend && node server.js"
-timeout /t 3 >nul
-echo      Backend iniciado
-echo.
+REM 5) Liberar puerto 3000
+for /f "tokens=5" %%p in ('netstat -ano 2^>nul ^| findstr ":3000" ^| findstr "LISTENING"') do (
+    taskkill /PID %%p /F >nul 2>&1
+)
 
-echo [4/4] Iniciando Frontend (puerto 5173)...
-start "GasAgas Frontend" cmd /c "cd /d C:\proyectos\Gases_agas\frontend && npm run dev"
-timeout /t 5 >nul
-echo      Frontend iniciado
-echo.
+REM 6) Iniciar servidor
+echo Iniciando servidor PROMINER...
+if exist "%~dp0node.exe" (
+    start "PROMINER Server" /D "%~dp0backend" cmd /k ""%~dp0node.exe" server.js"
+) else (
+    start "PROMINER Server" /D "%~dp0backend" cmd /k "node server.js"
+)
 
+REM 7) Abrir navegador
+timeout /t 4 >nul
+start "" "http://localhost:3000"
+
+echo.
 echo ============================================
-echo    SISTEMA LISTO
+echo    PROMINER INICIANDOSE
 echo ============================================
 echo.
-echo    Backend:  http://localhost:3000
-echo    Frontend: http://localhost:5173
+echo La ventana "PROMINER Server" muestra los logs del servidor.
+echo Para DETENER: ejecute detener.bat o cierre esa ventana.
 echo.
-echo    Abriendo navegador...
-timeout /t 2 >nul
-start http://localhost:5173
-echo.
-echo    Para DETENER el sistema, cierre las ventanas
-echo    de Backend y Frontend, o ejecute: detener.bat
-echo.
-pause
+exit /b 0

@@ -19,7 +19,7 @@ const Llenado = {
     },
     getPendientesLlenado: async () => {
         const result = await db.query(`
-            SELECT dr.*, e.codigo_interno, p.nombre as gas_nombre, pr.nombre as gas_solicitado_nombre,
+            SELECT dr.*, e.codigo_interno, e.capacidad, p.nombre as gas_nombre, pr.nombre as gas_solicitado_nombre,
                    c.razon_social as cliente, r.numero_comprobante, r.fecha_recepcion,
                    e.tipo_llenado, e.id_planta_externa, pe.razon_social as planta_externa,
                    e.prueba_hidraulica, e.requiere_pintura
@@ -30,15 +30,17 @@ const Llenado = {
             JOIN clientes c ON r.id_cliente = c.id_cliente
             LEFT JOIN productos p ON e.id_producto = p.id_producto
             LEFT JOIN plantas_externas pe ON e.id_planta_externa = pe.id_planta
-            WHERE dr.procesado = FALSE 
-              AND (dr.requiere_reparacion = FALSE OR dr.requiere_reparacion IS NULL)
-              AND (dr.prueba_hidraulica != 'Rechazado' OR dr.prueba_hidraulica IS NULL)
+            WHERE dr.procesado = 0 
               AND e.estado IN ('Vacio', 'En llenado', 'En OT local', 'Por entregar')
+              AND e.prueba_hidraulica = 'Aprobado'
+              AND NOT EXISTS (
+                  SELECT 1 FROM ordenes_trabajo ot2
+                  WHERE ot2.id_envase = e.id_envase AND ot2.estado IN ('Pendiente','En proceso')
+              )
             ORDER BY r.fecha_recepcion
         `);
         return result.rows;
     },
-    // Nuevo: llenados en tránsito (plantas externas)
     getEnTransito: async () => {
         const result = await db.query(`
             SELECT g.*, e.codigo_interno, p.nombre as gas, cli.razon_social as cliente
@@ -53,7 +55,6 @@ const Llenado = {
         `);
         return result.rows;
     },
-    // Nuevo: historial de llenados completados
     getHistorial: async () => {
         const result = await db.query(`
             SELECT l.*, e.codigo_interno, p.nombre as gas_nombre, t.nombre as llenador_nombre,
@@ -72,45 +73,55 @@ const Llenado = {
         return result.rows;
     },
     create: async (data) => {
-        const client = await db.getClient();
-        try {
-            await client.query('BEGIN');
-            const { id_detalle_recepcion, id_envase, id_llenador, gas_llenado, cantidad, destino, id_planta_externa, prueba_hidraulica_resultado } = data;
-            
-            // Validar que el gas llenado coincida con el gas del cilindro (inmutable)
-            const envaseCheck = await client.query('SELECT id_producto FROM envases WHERE id_envase = $1', [id_envase]);
-            if (envaseCheck.rows.length > 0 && envaseCheck.rows[0].id_producto != gas_llenado) {
-                throw new Error('El gas a llenar no coincide con el gas del cilindro');
+        return db.transaction(() => {
+            const { id_detalle_recepcion, id_envase, id_llenador, gas_llenado, destino, id_planta_externa, prueba_hidraulica_resultado } = data;
+
+            // La cantidad a llenar NO se pregunta en el proceso: proviene del comprobante de recepción
+            const dr = db.prepare('SELECT * FROM detalle_recepciones WHERE id_detalle = ?').get(id_detalle_recepcion);
+            if (!dr) {
+                throw new Error('No se encontró el detalle de recepción asociado');
+            }
+            const cantidadNum = Number(dr.cantidad_llenado);
+            if (!(cantidadNum > 0)) {
+                throw new Error('La recepción no tiene registrada la cantidad a llenar para este cilindro');
             }
 
-            const result = await client.query(
+            // Validar que el gas llenado coincida con el gas del cilindro (inmutable)
+            const envaseCheck = db.prepare('SELECT id_producto, capacidad, prueba_hidraulica FROM envases WHERE id_envase = ?').get(id_envase);
+            if (envaseCheck && envaseCheck.id_producto != gas_llenado) {
+                throw new Error('El gas a llenar no coincide con el gas del cilindro');
+            }
+            // No se puede llenar un cilindro sin la prueba hidráulica aprobada
+            if (envaseCheck && envaseCheck.prueba_hidraulica !== 'Aprobado') {
+                throw new Error('El cilindro no tiene la prueba hidráulica aprobada; no puede llenarse');
+            }
+            // La cantidad no puede exceder la capacidad del cilindro
+            if (envaseCheck && envaseCheck.capacidad && cantidadNum > envaseCheck.capacidad) {
+                throw new Error(
+                    `La cantidad a llenar (${cantidadNum}) no puede ser mayor a la capacidad del cilindro (${envaseCheck.capacidad} L)`
+                );
+            }
+
+            const result = db.prepare(
                 `INSERT INTO llenados (id_detalle_recepcion, id_envase, id_llenador, gas_llenado, cantidad, destino, id_planta_externa, prueba_hidraulica_resultado)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-                [id_detalle_recepcion, id_envase, id_llenador, gas_llenado, cantidad, destino, id_planta_externa || null, prueba_hidraulica_resultado || null]
-            );
+                 VALUES (?,?,?,?,?,?,?,?)`
+            ).run(id_detalle_recepcion, id_envase, id_llenador, gas_llenado, cantidadNum, destino, id_planta_externa || null, prueba_hidraulica_resultado || null);
             
             const nuevoEstado = destino === 'Retiro inmediato' ? 'Lleno' : 'En bodega';
-            await client.query('UPDATE envases SET estado = $1, fecha_ultimo_llenado = CURRENT_TIMESTAMP WHERE id_envase = $2', [nuevoEstado, id_envase]);
-            await client.query('UPDATE detalle_recepciones SET procesado = TRUE WHERE id_detalle = $1', [id_detalle_recepcion]);
-            await client.query('UPDATE productos SET stock_disponible = stock_disponible - $1 WHERE id_producto = $2', [cantidad, gas_llenado]);
+            db.prepare("UPDATE envases SET estado = ?, fecha_ultimo_llenado = datetime('now') WHERE id_envase = ?").run(nuevoEstado, id_envase);
+            db.prepare('UPDATE detalle_recepciones SET procesado = 1 WHERE id_detalle = ?').run(id_detalle_recepcion);
+            db.prepare('UPDATE productos SET stock_disponible = stock_disponible - ? WHERE id_producto = ?').run(cantidadNum, gas_llenado);
             
             // Si era de planta externa, actualizar guía
             if (id_planta_externa) {
-                await client.query(
-                    `UPDATE guias_despacho SET estado = 'Devuelta', fecha_retorno = NOW() 
-                     WHERE id_detalle_recepcion = $1 AND estado IN ('Enviada','Recibida')`,
-                    [id_detalle_recepcion]
-                );
+                db.prepare(
+                    `UPDATE guias_despacho SET estado = 'Devuelta', fecha_retorno = datetime('now') 
+                     WHERE id_detalle_recepcion = ? AND estado IN ('Enviada','Recibida')`
+                ).run(id_detalle_recepcion);
             }
             
-            await client.query('COMMIT');
-            return result.rows[0];
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
-            client.release();
-        }
+            return db.prepare('SELECT * FROM llenados WHERE id_llenado = ?').get(result.lastInsertRowid);
+        })();
     }
 };
 

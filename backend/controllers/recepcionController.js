@@ -14,14 +14,20 @@ const controller = {
     },
     create: async (req, res) => {
         try {
-            if (!req.body.id_cliente || !req.body.id_recepcionista || !req.body.numero_comprobante) {
-                return res.status(400).json({ error: 'Cliente, recepcionista y numero de comprobante requeridos' });
+            if (!req.body.id_cliente || !req.body.id_recepcionista) {
+                return res.status(400).json({ error: 'Cliente y recepcionista requeridos' });
             }
             if (!req.body.detalle || req.body.detalle.length === 0) {
                 return res.status(400).json({ error: 'Debe agregar al menos un cilindro' });
             }
             const r = await Recepcion.create(req.body, req.body.detalle);
             res.status(201).json(r);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    },
+    // Próximo número de comprobante (secuencial del día) para mostrar en el formulario
+    siguiente: async (req, res) => {
+        try {
+            res.json({ numero_comprobante: Recepcion.siguienteComprobante() });
         } catch (e) { res.status(500).json({ error: e.message }); }
     },
     close: async (req, res) => {

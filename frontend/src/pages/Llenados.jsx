@@ -30,7 +30,6 @@ const Llenados = () => {
     const [formData, setFormData] = useState({
         id_llenador: '',
         gas_llenado: '',
-        cantidad: '',
         destino: 'Retiro inmediato',
         id_planta_externa: null,
         prueba_hidraulica_resultado: null,
@@ -108,7 +107,6 @@ const Llenados = () => {
         setFormData({
             id_llenador: '',
             gas_llenado: pendiente.gas_solicitado || '',
-            cantidad: '',
             destino: 'Retiro inmediato',
             id_planta_externa: isExterno ? pendiente.id_planta_externa : null,
             prueba_hidraulica_resultado: isExterno ? pendiente.prueba_hidraulica : null,
@@ -131,7 +129,6 @@ const Llenados = () => {
                 id_envase: seleccionado.id_envase,
                 id_llenador: parseInt(formData.id_llenador),
                 gas_llenado: parseInt(formData.gas_llenado),
-                cantidad: parseFloat(formData.cantidad),
                 destino: formData.destino,
                 id_planta_externa: formData.id_planta_externa,
                 prueba_hidraulica_resultado: formData.prueba_hidraulica_resultado,
@@ -174,6 +171,7 @@ const Llenados = () => {
                                     <th>Código</th>
                                     <th>Cliente</th>
                                     <th>Gas</th>
+                                    <th>Solicitada / Cap. (L)</th>
                                     <th>Prueba Hidr.</th>
                                     <th>Pintura</th>
                                     <th>Tipo Llenado</th>
@@ -184,7 +182,7 @@ const Llenados = () => {
                             </thead>
                             <tbody>
                                 {pendientesFiltrados.length === 0 && (
-                                    <tr><td colSpan={9} className="text-center text-muted">
+                                    <tr><td colSpan={10} className="text-center text-muted">
                                         {pendientes.length === 0 ? 'No hay cilindros pendientes de llenado' : 'No hay cilindros que coincidan con los filtros'}
                                     </td></tr>
                                 )}
@@ -193,6 +191,10 @@ const Llenados = () => {
                                         <td className="fw-bold">{p.codigo_interno}</td>
                                         <td>{p.cliente}</td>
                                         <td>{p.gas_solicitado_nombre}</td>
+                                        <td>
+                                            {p.cantidad_llenado ? `${p.cantidad_llenado} L` : '-'}
+                                            {p.capacidad ? ` / ${p.capacidad} L` : ''}
+                                        </td>
                                         <td>
                                             <Badge bg={p.prueba_hidraulica === 'Aprobado' ? 'success' : p.prueba_hidraulica === 'Rechazado' ? 'danger' : 'secondary'}>
                                                 {p.prueba_hidraulica}
@@ -357,15 +359,19 @@ const Llenados = () => {
                             <Form.Text>El gas es inmutable y viene definido por el cilindro</Form.Text>
                         </Form.Group>
                         <Form.Group className="mb-3">
-                            <Form.Label>Cantidad *</Form.Label>
+                            <Form.Label>Cantidad a llenar (según comprobante de recepción)</Form.Label>
                             <Form.Control
-                                type="number"
-                                step="0.01"
-                                min="0.01"
-                                value={formData.cantidad}
-                                onChange={e => setFormData({ ...formData, cantidad: e.target.value })}
-                                required
+                                value={seleccionado?.cantidad_llenado != null ? `${seleccionado.cantidad_llenado} L` : 'No registrada'}
+                                disabled
                             />
+                            {seleccionado?.capacidad && (
+                                <Form.Text className="text-muted">
+                                    Capacidad del cilindro: {seleccionado.capacidad} L.
+                                </Form.Text>
+                            )}
+                            <Form.Text className="text-muted d-block">
+                                Este dato proviene del comprobante de recepción y no se edita en el llenado.
+                            </Form.Text>
                         </Form.Group>
                         <Form.Group className="mb-3">
                             <Form.Label>Destino *</Form.Label>

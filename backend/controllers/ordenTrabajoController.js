@@ -36,6 +36,16 @@ const controller = {
             res.json(ot);
         } catch (e) { res.status(500).json({ error: e.message }); }
     },
+    registroAvance: async (req, res) => {
+        try {
+            if (!req.body.detalle) {
+                return res.status(400).json({ error: 'Debe indicar el detalle del avance' });
+            }
+            const ot = await OrdenTrabajo.registrarAvance(req.params.id, req.body.detalle);
+            if (!ot) return res.status(404).json({ error: 'Orden no encontrada' });
+            res.json(ot);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    },
     cancel: async (req, res) => {
         try {
             const ot = await OrdenTrabajo.cancel(req.params.id);

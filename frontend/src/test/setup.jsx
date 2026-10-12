@@ -1,5 +1,64 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
+import React from 'react';
+
+// Mock react-bootstrap components - defined inline to avoid hoisting issues
+vi.mock('react-bootstrap', () => {
+  const mockComponent = (name) => ({ children, ...props }) => 
+    React.createElement('div', { 'data-testid': name.toLowerCase(), ...props }, children);
+  
+  const mockCompound = (name, subs = {}) => {
+    const Main = ({ children, ...props }) => 
+      React.createElement('div', { 'data-testid': name.toLowerCase(), ...props }, children);
+    Object.entries(subs).forEach(([key, fn]) => { Main[key] = fn; });
+    return Main;
+  };
+
+  return {
+    Card: mockCompound('Card', {
+      Header: mockComponent('CardHeader'),
+      Body: mockComponent('CardBody'),
+      Footer: mockComponent('CardFooter'),
+      Title: mockComponent('CardTitle'),
+      Text: mockComponent('CardText'),
+      Img: mockComponent('CardImg'),
+    }),
+    Badge: mockComponent('Badge'),
+    Form: mockCompound('Form', {
+      Control: mockComponent('FormControl'),
+      Select: mockComponent('FormSelect'),
+      Label: mockComponent('FormLabel'),
+      Check: mockComponent('FormCheck'),
+      Group: mockComponent('FormGroup'),
+      Text: mockComponent('FormText'),
+    }),
+    Row: mockComponent('Row'),
+    Col: mockComponent('Col'),
+    Button: mockComponent('Button'),
+    InputGroup: mockComponent('InputGroup'),
+    InputGroupText: mockComponent('InputGroupText'),
+    DropdownButton: mockComponent('DropdownButton'),
+    Dropdown: mockComponent('Dropdown'),
+    Table: mockComponent('Table'),
+    Alert: mockComponent('Alert'),
+    Spinner: mockComponent('Spinner'),
+    Modal: mockComponent('Modal'),
+    Tabs: mockComponent('Tabs'),
+    Tab: mockComponent('Tab'),
+    Accordion: mockComponent('Accordion'),
+    AccordionItem: mockComponent('AccordionItem'),
+    AccordionHeader: mockComponent('AccordionHeader'),
+    AccordionBody: mockComponent('AccordionBody'),
+    Pagination: mockComponent('Pagination'),
+    Breadcrumb: mockComponent('Breadcrumb'),
+    BreadcrumbItem: mockComponent('BreadcrumbItem'),
+    Nav: mockComponent('Nav'),
+    NavLink: mockComponent('NavLink'),
+    Navbar: mockComponent('Navbar'),
+    NavDropdown: mockComponent('NavDropdown'),
+    Container: mockComponent('Container'),
+  };
+});
 
 // Mock react-router-dom
 vi.mock('react-router-dom', () => ({
@@ -124,7 +183,10 @@ const localStorageMock = {
   removeItem: vi.fn(),
   clear: vi.fn(),
 };
-global.localStorage = localStorageMock;
+Object.defineProperty(global, 'localStorage', {
+  value: localStorageMock,
+  writable: true,
+});
 
 // Mock console.error to reduce noise in tests
 const originalError = console.error;
