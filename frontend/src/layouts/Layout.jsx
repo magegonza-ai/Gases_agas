@@ -10,6 +10,7 @@ const links = [
     { to: '/recepciones', label: 'Recepciones', icon: '🧾' },
     { to: '/llenados', label: 'Llenados', icon: '⛽' },
     { to: '/ordenes-trabajo', label: 'Órdenes de Trabajo', icon: '🔧' },
+    { to: '/cilindros-baja', label: 'Cilindros de Baja', icon: '🚫' },
     { to: '/entregas', label: 'Entregas', icon: '🚚' },
     { to: '/guias-despacho', label: 'Guías Despacho', icon: '📋' },
     { to: '/clientes', label: 'Clientes', icon: '👥' },

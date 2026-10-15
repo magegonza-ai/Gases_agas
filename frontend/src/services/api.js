@@ -160,6 +160,13 @@ export const transaccionesAPI = {
     getResumenDiario: () => apiWrapper.get('/transacciones/resumen-diario'),
 };
 
+// Certificados de baja: cilindros dados de baja por prueba hidráulica rechazada en local
+export const certificadosBajaAPI = {
+    getAll: () => apiWrapper.get('/certificados-baja'),
+    getById: (id) => apiWrapper.get(`/certificados-baja/${id}`),
+    getByEnvase: (idEnvase) => apiWrapper.get(`/certificados-baja/envase/${idEnvase}`),
+};
+
 // Sistema: rutina de salida (cierra el programa)
 export const systemAPI = {
     shutdown: () => apiWrapper.post('/system/shutdown'),

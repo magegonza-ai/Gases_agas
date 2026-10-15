@@ -272,6 +272,30 @@ function runMigrations() {
             console.log('🔧 Migración aplicada: CHECK ampliado en envases.estado');
         }
 
+        // Certificados de baja: cilindros dados de baja por prueba hidráulica rechazada en local.
+        const cbTabla = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='certificados_baja'").get();
+        if (!cbTabla) {
+            db.exec(`CREATE TABLE certificados_baja (
+                id_certificado INTEGER PRIMARY KEY AUTOINCREMENT,
+                numero_certificado TEXT UNIQUE NOT NULL,
+                id_envase INTEGER NOT NULL REFERENCES envases(id_envase),
+                codigo_interno TEXT NOT NULL,
+                gas_nombre TEXT,
+                capacidad REAL,
+                cliente_nombre TEXT,
+                id_orden_trabajo INTEGER REFERENCES ordenes_trabajo(id_orden),
+                id_detalle_recepcion INTEGER REFERENCES detalle_recepciones(id_detalle),
+                id_responsable INTEGER REFERENCES trabajadores(id_trabajador),
+                responsable_nombre TEXT,
+                responsable_cargo TEXT,
+                glosa TEXT NOT NULL,
+                fecha TEXT DEFAULT (datetime('now'))
+            )`);
+            db.exec('CREATE INDEX IF NOT EXISTS idx_certbaja_envase ON certificados_baja(id_envase)');
+            db.exec('CREATE INDEX IF NOT EXISTS idx_certbaja_ot ON certificados_baja(id_orden_trabajo)');
+            console.log('🔧 Migración aplicada: tabla certificados_baja');
+        }
+
         // Vista de guías: incluir los trabajos realizados y la cantidad llenada (recepción desde planta externa).
         // Se recrea siempre (idempotente) para que bases existentes adopten la nueva definición.
         db.exec('DROP VIEW IF EXISTS vw_guias_despacho_completo');

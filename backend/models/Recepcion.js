@@ -122,6 +122,13 @@ const Recepcion = {
                     }
                     vistos.add(item.id_envase);
 
+                    // Un cilindro dado de baja (prueba hidráulica rechazada) no puede volver a ingresarse.
+                    if (env.estado === 'Baja') {
+                        throw new Error(
+                            `El cilindro ${codigo} está DADO DE BAJA y no puede volver a recepcionarse.`
+                        );
+                    }
+
                     // No se puede ingresar un cilindro que sigue en una recepción/guía en proceso (no entregado)
                     const abierto = db.prepare(
                         'SELECT COUNT(*) as c FROM detalle_recepciones WHERE id_envase = ? AND procesado = 0'

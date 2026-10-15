@@ -17,6 +17,7 @@ const limpiar = db.transaction(() => {
     // 1) Borrar movimientos (orden seguro por claves foráneas)
     db.exec('DELETE FROM detalle_entregas');
     db.exec('DELETE FROM entregas');
+    db.exec('DELETE FROM certificados_baja');
     db.exec('DELETE FROM guias_despacho');
     db.exec('DELETE FROM llenados');
     db.exec('DELETE FROM ordenes_trabajo');
@@ -32,6 +33,7 @@ const limpiar = db.transaction(() => {
         'envases', 'envase_observaciones', 'recepciones', 'detalle_recepciones',
         'ordenes_trabajo', 'llenados', 'guias_despacho', 'entregas',
         'detalle_entregas', 'transacciones', 'detalle_transacciones',
+        'certificados_baja',
     ];
     for (const t of tablas) {
         db.exec(`DELETE FROM sqlite_sequence WHERE name = '${t}'`);
@@ -55,6 +57,7 @@ console.log('   Recepciones:      ', q('SELECT COUNT(*) c FROM recepciones').c);
 console.log('   Cilindros:        ', q('SELECT COUNT(*) c FROM envases').c);
 console.log('   Guías de despacho:', q('SELECT COUNT(*) c FROM guias_despacho').c);
 console.log('   Órdenes de trabajo:', q('SELECT COUNT(*) c FROM ordenes_trabajo').c);
+console.log('   Certificados baja:', q('SELECT COUNT(*) c FROM certificados_baja').c);
 console.log('   Llenados:         ', q('SELECT COUNT(*) c FROM llenados').c);
 console.log('   Entregas:         ', q('SELECT COUNT(*) c FROM entregas').c);
 console.log('   Transacciones:    ', q('SELECT COUNT(*) c FROM transacciones').c);

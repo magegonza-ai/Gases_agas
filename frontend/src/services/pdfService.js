@@ -377,6 +377,98 @@ export const generateComprobanteEntregaPDF = (entrega, detalle, cliente, despach
 };
 
 // ============================================
+// CERTIFICADO DE BAJA DE CILINDRO
+// Se emite cuando la prueba hidráulica local resulta RECHAZADA.
+// ============================================
+export const generateCertificadoBajaPDF = (certificado) => {
+    const numOt = certificado.id_orden_trabajo
+        ? `OT-${String(certificado.id_orden_trabajo).padStart(5, '0')}`
+        : '-';
+
+    const docDefinition = {
+        pageSize: 'A4',
+        pageMargins: [40, 60, 40, 60],
+        defaultStyle: { font: 'Roboto' },
+        styles: defaultStyles,
+        content: [
+            headerTable('CERTIFICADO DE BAJA', `N° ${certificado.numero_certificado}`),
+
+            {
+                columns: [
+                    {
+                        stack: [
+                            infoRow('Fecha', formatDateTime(certificado.fecha)),
+                            infoRow('N° Cilindro', certificado.codigo_interno),
+                            infoRow('Gas', certificado.gas_nombre),
+                        ],
+                    },
+                    {
+                        stack: [
+                            infoRow('Capacidad', certificado.capacidad != null ? `${certificado.capacidad} L` : '-'),
+                            infoRow('Cliente', certificado.cliente_nombre),
+                            infoRow('Orden de Trabajo', numOt),
+                        ],
+                    },
+                ],
+            },
+
+            sectionTitle('RESULTADO DE LA PRUEBA HIDRÁULICA'),
+            {
+                table: {
+                    headerRows: 1,
+                    widths: ['40%', '60%'],
+                    margin: [0, 5, 0, 10],
+                    body: [
+                        [
+                            { text: 'Prueba Hidráulica Local', style: 'tableHeader' },
+                            { text: 'Resultado', style: 'tableHeader' },
+                        ],
+                        [
+                            { text: 'Realizada en planta', style: 'tableCellCenter' },
+                            { text: 'RECHAZADO', style: 'tableCellCenter', bold: true, color: '#b91c1c' },
+                        ],
+                    ],
+                },
+            },
+
+            {
+                text: `Por medio del presente documento se certifica que el cilindro N° ${certificado.codigo_interno} fue sometido a la prueba hidráulica en la planta local y su resultado fue RECHAZADO. En consecuencia, el cilindro queda DADO DE BAJA y fuera de servicio, no pudiendo ser recepcionado ni llenado nuevamente.`,
+                style: 'value',
+                margin: [0, 5, 0, 10],
+            },
+
+            sectionTitle('GLOSA / DETALLE DEL CERTIFICADO'),
+            { text: certificado.glosa || '-', style: 'value', margin: [0, 0, 0, 10] },
+
+            // Pie de firma del responsable
+            {
+                columns: [
+                    { width: '*', text: '' },
+                    {
+                        width: 240,
+                        stack: [
+                            { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 240, y2: 5, lineWidth: 1 }] },
+                            { text: certificado.responsable_nombre || 'Responsable', style: 'small', alignment: 'center', margin: [0, 5, 0, 0], bold: true },
+                            { text: certificado.responsable_cargo || 'Responsable Técnico', style: 'small', alignment: 'center' },
+                            { text: 'Nombre / Firma Responsable', style: 'small', alignment: 'center' },
+                        ],
+                    },
+                    { width: '*', text: '' },
+                ],
+                margin: [0, 60, 0, 0],
+            },
+
+            {
+                text: `Documento generado automáticamente - ${new Date().toLocaleString('es-CL')}`,
+                style: 'footer',
+            },
+        ],
+    };
+
+    return pdfMake.createPdf(docDefinition);
+};
+
+// ============================================
 // LISTADO GENERICO (para reportes)
 // ============================================
 export const generateListadoPDF = (title, subtitle, columns, data, keyMap) => {

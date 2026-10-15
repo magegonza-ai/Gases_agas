@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Alert, Badge, Spinner, ButtonGroup } from 'react-bootstrap';
 import { ordenesTrabajoAPI, trabajadoresAPI } from '../services/api';
+import { generateCertificadoBajaPDF } from '../services/pdfService';
 
 const estadoVariant = {
     'Pendiente': 'warning',
@@ -36,7 +37,10 @@ const OrdenesTrabajo = () => {
     const [textoAvance, setTextoAvance] = useState('');
     const [seleccionada, setSeleccionada] = useState(null);
     const [idAsignado, setIdAsignado] = useState('');
-    const [formData, setFormData] = useState({ resultado: '', repuestos: '', tiempo_invertido: '', prueba_hidraulica_resultado: '', pintura_realizada: false });
+    const [idResponsable, setIdResponsable] = useState('');
+    const [certificado, setCertificado] = useState(null);
+    const [showCertificado, setShowCertificado] = useState(false);
+    const [formData, setFormData] = useState({ resultado: '', repuestos: '', tiempo_invertido: '', prueba_hidraulica_resultado: '', pintura_realizada: false, glosa: '' });
 
     useEffect(() => {
         loadAll();
@@ -67,7 +71,8 @@ const OrdenesTrabajo = () => {
 
     const openCompletar = (orden) => {
         setSeleccionada(orden);
-        setFormData({ resultado: '', repuestos: '', tiempo_invertido: '', prueba_hidraulica_resultado: '', pintura_realizada: false });
+        setIdResponsable(orden.id_asignado || '');
+        setFormData({ resultado: '', repuestos: '', tiempo_invertido: '', prueba_hidraulica_resultado: '', pintura_realizada: false, glosa: '' });
         setShowCompletar(true);
     };
 
@@ -109,20 +114,46 @@ const OrdenesTrabajo = () => {
     const handleCompletar = async (e) => {
         e.preventDefault();
         setGuardando(true);
+        setError('');
         try {
-            await ordenesTrabajoAPI.complete(seleccionada.id_orden, {
+            const res = await ordenesTrabajoAPI.complete(seleccionada.id_orden, {
                 resultado: formData.resultado,
                 repuestos: formData.repuestos,
                 tiempo_invertido: formData.tiempo_invertido ? parseInt(formData.tiempo_invertido) : null,
                 prueba_hidraulica_resultado: formData.prueba_hidraulica_resultado || null,
                 pintura_realizada: formData.pintura_realizada,
+                glosa: formData.glosa,
+                id_responsable: idResponsable ? parseInt(idResponsable) : null,
             });
             setShowCompletar(false);
             loadAll();
+            // Si la prueba fue rechazada, el backend devuelve el certificado de baja
+            if (res.data?.certificado_baja) {
+                setCertificado(res.data.certificado_baja);
+                setShowCertificado(true);
+            }
         } catch (err) {
             setError(err.response?.data?.error || 'Error completando orden');
         } finally {
             setGuardando(false);
+        }
+    };
+
+    const descargarCertificado = () => {
+        if (!certificado) return;
+        try {
+            generateCertificadoBajaPDF(certificado).download(`Certificado_Baja_${certificado.numero_certificado}.pdf`);
+        } catch (err) {
+            setError('Error generando PDF: ' + (err.message || ''));
+        }
+    };
+
+    const imprimirCertificado = () => {
+        if (!certificado) return;
+        try {
+            generateCertificadoBajaPDF(certificado).print();
+        } catch (err) {
+            setError('Error imprimiendo PDF: ' + (err.message || ''));
         }
     };
 
@@ -276,12 +307,45 @@ const OrdenesTrabajo = () => {
                                     <option value="Aprobado">Aprobado</option>
                                     <option value="Rechazado">Rechazado</option>
                                 </Form.Select>
-                                <Form.Text className="text-danger d-block">
-                                    La prueba hidráulica debe quedar <b>Aprobada</b> para poder completar la OT.
+                                <Form.Text className="text-muted d-block">
+                                    Si la prueba resulta <b>Rechazada</b>, se emitirá un <b>certificado de baja</b> y el
+                                    cilindro quedará fuera de servicio (no podrá recepcionarse ni llenarse nuevamente).
                                 </Form.Text>
                             </Form.Group>
                         )}
-                        {seleccionada?.requiere_pintura && (
+                        {seleccionada?.requiere_prueba_hidraulica && formData.prueba_hidraulica_resultado === 'Rechazado' && (
+                            <>
+                                <Alert variant="danger" className="py-2">
+                                    La prueba <b>Rechazada</b> da de baja el cilindro. Complete la glosa y el responsable
+                                    para emitir el certificado.
+                                </Alert>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Glosa / detalle del certificado *</Form.Label>
+                                    <Form.Control
+                                        as="textarea"
+                                        rows={3}
+                                        value={formData.glosa}
+                                        onChange={e => setFormData({ ...formData, glosa: e.target.value })}
+                                        placeholder="Detalle del rechazo, hallazgos u observaciones técnicas..."
+                                        required
+                                    />
+                                </Form.Group>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Responsable que firma *</Form.Label>
+                                    <Form.Select
+                                        value={idResponsable}
+                                        onChange={e => setIdResponsable(e.target.value)}
+                                        required
+                                    >
+                                        <option value="">Seleccione un responsable...</option>
+                                        {trabajadores.map(t => (
+                                            <option key={t.id_trabajador} value={t.id_trabajador}>{t.nombre} ({t.cargos})</option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                            </>
+                        )}
+                        {seleccionada?.requiere_pintura && formData.prueba_hidraulica_resultado !== 'Rechazado' && (
                             <Form.Group className="mb-3">
                                 <Form.Check
                                     type="checkbox"
@@ -365,6 +429,30 @@ const OrdenesTrabajo = () => {
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowRegistro(false)}>Cerrar</Button>
+                </Modal.Footer>
+            </Modal>
+
+            <Modal show={showCertificado} onHide={() => setShowCertificado(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>🚫 Cilindro dado de baja</Modal.Title>
+                </Modal.Header>
+                <Modal.Body className="text-center">
+                    <h5>Certificado N° {certificado?.numero_certificado}</h5>
+                    <p className="text-muted mb-4">
+                        El cilindro <b>{certificado?.codigo_interno}</b> quedó <b>dado de baja</b> por prueba
+                        hidráulica rechazada y no podrá recepcionarse ni llenarse nuevamente.
+                    </p>
+                    <div className="d-flex justify-content-center gap-3">
+                        <Button variant="primary" onClick={descargarCertificado}>
+                            ⬇ Descargar PDF
+                        </Button>
+                        <Button variant="outline-primary" onClick={imprimirCertificado}>
+                            🖨 Imprimir
+                        </Button>
+                    </div>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowCertificado(false)}>Cerrar</Button>
                 </Modal.Footer>
             </Modal>
         </div>

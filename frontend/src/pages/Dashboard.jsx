@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, Row, Col, Table, Badge, Alert, Spinner } from 'react-bootstrap';
+import { Link } from 'react-router-dom';
 import { envasesAPI, productosAPI, ordenesTrabajoAPI, recepcionesAPI } from '../services/api';
 
 const estadoVariant = {
@@ -12,6 +13,7 @@ const estadoVariant = {
     'En planta externa': 'info',
     'En OT local': 'warning',
     'Por entregar': 'primary',
+    'Baja': 'danger',
 };
 
 const situacionVariant = {
@@ -58,6 +60,9 @@ const Dashboard = () => {
     const enPlantaExterna = pendientesEntrega.filter(c => c.situacion === 'En llenado externo').length;
     const enOTLocal = pendientesEntrega.filter(c => c.situacion === 'En reparación/pintura local').length;
     const porEntregar = pendientesEntrega.filter(c => c.situacion === 'Listo para despacho').length;
+    // Cilindros dados de baja (prueba hidráulica rechazada en local)
+    const totalBajas = resumen.find(r => r.estado === 'Baja')?.cantidad || 0;
+    const resumenEstados = resumen.filter(r => r.estado !== 'Baja');
 
     return (
         <div>
@@ -67,7 +72,7 @@ const Dashboard = () => {
 
             {/* Resumen de estados de cilindros */}
             <Row className="mb-4">
-                {resumen.map(item => (
+                {resumenEstados.map(item => (
                     <Col md={3} sm={6} key={item.estado} className="mb-3">
                         <Card className="text-center h-100 shadow-sm">
                             <Card.Body>
@@ -92,6 +97,14 @@ const Dashboard = () => {
                         <Card.Body>
                             <Card.Title as="div" className="display-6 text-primary">{totalPendientes}</Card.Title>
                             <Card.Text><Badge bg="primary">Por Entregar</Badge></Card.Text>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col md={3} sm={6} className="mb-3">
+                    <Card as={Link} to="/cilindros-baja" className="text-center h-100 shadow-sm border-danger text-decoration-none">
+                        <Card.Body>
+                            <Card.Title as="div" className="display-6 text-danger">{totalBajas}</Card.Title>
+                            <Card.Text><Badge bg="danger">Cilindros de Baja</Badge></Card.Text>
                         </Card.Body>
                     </Card>
                 </Col>

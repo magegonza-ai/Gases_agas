@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const CertificadoBaja = require('./CertificadoBaja');
 
 const pad = (n, len) => String(n).padStart(len, '0');
 
@@ -85,7 +86,7 @@ const OrdenTrabajo = {
         })();
     },
     complete: async (id, data) => {
-        const { resultado, repuestos, tiempo_invertido, prueba_hidraulica_resultado, pintura_realizada } = data;
+        const { resultado, repuestos, tiempo_invertido, prueba_hidraulica_resultado, pintura_realizada, glosa, id_responsable } = data;
         return db.transaction(() => {
             const ot = db.prepare('SELECT * FROM ordenes_trabajo WHERE id_orden = ?').get(id);
             if (!ot) return null;
@@ -93,17 +94,29 @@ const OrdenTrabajo = {
                 throw new Error(`La OT ${ot.numero_orden} ya fue ${ot.estado.toLowerCase()}`);
             }
 
-            // Si la OT requiere prueba hidráulica, debe quedar realizada y APROBADA
+            // Prueba hidráulica (solo para OTs locales que la requieren).
+            // Aprobada: el cilindro se habilita para llenado.
+            // Rechazada: se emite un certificado y el cilindro se da de baja.
             let pruebaResult = null;
+            let baja = false;
             if (ot.requiere_prueba_hidraulica) {
                 pruebaResult = prueba_hidraulica_resultado || null;
-                if (pruebaResult !== 'Aprobado') {
-                    throw new Error('La prueba hidráulica debe realizarse y quedar APROBADA para completar la OT');
+                if (pruebaResult !== 'Aprobado' && pruebaResult !== 'Rechazado') {
+                    throw new Error('Debe indicar el resultado de la prueba hidráulica (Aprobado o Rechazado)');
+                }
+                if (pruebaResult === 'Rechazado') {
+                    baja = true;
+                    if (!glosa || !String(glosa).trim()) {
+                        throw new Error('Debe ingresar la glosa o detalle del certificado para dar de baja el cilindro');
+                    }
+                    if (!id_responsable) {
+                        throw new Error('Debe indicar el responsable que firma el certificado de baja');
+                    }
                 }
             }
 
-            // Si la OT requiere pintura, se debe confirmar que fue realizada
-            if (ot.requiere_pintura && !pintura_realizada) {
+            // La pintura solo se exige cuando el cilindro sigue en servicio (no se dio de baja)
+            if (!baja && ot.requiere_pintura && !pintura_realizada) {
                 throw new Error('Debe confirmar que la pintura fue realizada para completar la OT');
             }
 
@@ -113,19 +126,58 @@ const OrdenTrabajo = {
                  pintura_realizada = ?, fecha_cierre = datetime('now') WHERE id_orden = ?`
             ).run(resultado, repuestos, tiempo_invertido, pruebaResult, pintura_realizada ? 1 : 0, id);
 
+            let certificado = null;
+
             // Reflejar los trabajos realizados en el cilindro y en el detalle de recepción
             if (pruebaResult === 'Aprobado') {
                 db.prepare("UPDATE envases SET prueba_hidraulica = 'Aprobado', fecha_prueba_hidraulica = datetime('now') WHERE id_envase = ?")
                     .run(ot.id_envase);
                 db.prepare("UPDATE detalle_recepciones SET prueba_hidraulica = 'Aprobado' WHERE id_detalle = ?")
                     .run(ot.id_detalle_recepcion);
-            }
-            if (ot.requiere_pintura && pintura_realizada) {
-                db.prepare('UPDATE envases SET requiere_pintura = 0 WHERE id_envase = ?').run(ot.id_envase);
+                if (ot.requiere_pintura && pintura_realizada) {
+                    db.prepare('UPDATE envases SET requiere_pintura = 0 WHERE id_envase = ?').run(ot.id_envase);
+                }
+            } else if (pruebaResult === 'Rechazado') {
+                // El cilindro se da de baja: no puede recepcionarse ni llenarse nuevamente.
+                db.prepare("UPDATE envases SET estado = 'Baja', prueba_hidraulica = 'Rechazado', fecha_prueba_hidraulica = datetime('now') WHERE id_envase = ?")
+                    .run(ot.id_envase);
+                db.prepare("UPDATE detalle_recepciones SET prueba_hidraulica = 'Rechazado', procesado = 1 WHERE id_detalle = ?")
+                    .run(ot.id_detalle_recepcion);
+
+                const info = db.prepare(`
+                    SELECT e.codigo_interno, p.nombre as gas_nombre, e.capacidad, c.razon_social as cliente_nombre
+                    FROM envases e
+                    JOIN productos p ON e.id_producto = p.id_producto
+                    JOIN detalle_recepciones dr ON dr.id_detalle = ?
+                    JOIN recepciones r ON dr.id_recepcion = r.id_recepcion
+                    JOIN clientes c ON r.id_cliente = c.id_cliente
+                    WHERE e.id_envase = ?`).get(ot.id_detalle_recepcion, ot.id_envase);
+
+                const resp = db.prepare(`
+                    SELECT t.nombre, GROUP_CONCAT(cg.nombre, ', ') as cargos
+                    FROM trabajadores t
+                    LEFT JOIN trabajador_cargos tc ON tc.id_trabajador = t.id_trabajador
+                    LEFT JOIN cargos cg ON tc.id_cargo = cg.id_cargo
+                    WHERE t.id_trabajador = ?
+                    GROUP BY t.id_trabajador`).get(id_responsable);
+
+                certificado = CertificadoBaja.crear({
+                    id_envase: ot.id_envase,
+                    codigo_interno: info?.codigo_interno || null,
+                    gas_nombre: info?.gas_nombre || null,
+                    capacidad: info?.capacidad ?? null,
+                    cliente_nombre: info?.cliente_nombre || null,
+                    id_orden_trabajo: ot.id_orden,
+                    id_detalle_recepcion: ot.id_detalle_recepcion,
+                    id_responsable: id_responsable || null,
+                    responsable_nombre: resp?.nombre || null,
+                    responsable_cargo: resp?.cargos || null,
+                    glosa: String(glosa).trim(),
+                });
             }
 
             const otActualizada = db.prepare('SELECT * FROM ordenes_trabajo WHERE id_orden = ?').get(id);
-            if (otActualizada) {
+            if (otActualizada && !baja) {
                 const otherOTs = db.prepare(
                     "SELECT COUNT(*) as count FROM ordenes_trabajo WHERE id_envase = ? AND estado IN ('Pendiente','En proceso') AND id_orden != ?"
                 ).get(otActualizada.id_envase, otActualizada.id_orden);
@@ -134,7 +186,8 @@ const OrdenTrabajo = {
                     db.prepare("UPDATE envases SET estado = 'Vacio' WHERE id_envase = ?").run(otActualizada.id_envase);
                 }
             }
-            return otActualizada;
+
+            return { ...otActualizada, certificado_baja: certificado };
         })();
     },
     cancel: async (id) => {

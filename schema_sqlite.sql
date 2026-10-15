@@ -5,6 +5,7 @@ PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
 
 -- Limpiar tablas existentes (orden inverso por FK)
+DROP TABLE IF EXISTS certificados_baja;
 DROP TABLE IF EXISTS detalle_transacciones;
 DROP TABLE IF EXISTS transacciones;
 DROP TABLE IF EXISTS guias_despacho;
@@ -149,6 +150,25 @@ CREATE TABLE ordenes_trabajo (
     fecha_entrega_estimada TEXT
 );
 
+-- Certificado de baja: se emite cuando la prueba hidráulica local resulta RECHAZADA.
+-- Guarda una copia (snapshot) de los datos para que el documento sea autocontenido.
+CREATE TABLE certificados_baja (
+    id_certificado INTEGER PRIMARY KEY AUTOINCREMENT,
+    numero_certificado TEXT UNIQUE NOT NULL,
+    id_envase INTEGER NOT NULL REFERENCES envases(id_envase),
+    codigo_interno TEXT NOT NULL,
+    gas_nombre TEXT,
+    capacidad REAL,
+    cliente_nombre TEXT,
+    id_orden_trabajo INTEGER REFERENCES ordenes_trabajo(id_orden),
+    id_detalle_recepcion INTEGER REFERENCES detalle_recepciones(id_detalle),
+    id_responsable INTEGER REFERENCES trabajadores(id_trabajador),
+    responsable_nombre TEXT,
+    responsable_cargo TEXT,
+    glosa TEXT NOT NULL,
+    fecha TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE llenados (
     id_llenado INTEGER PRIMARY KEY AUTOINCREMENT,
     id_detalle_recepcion INTEGER NOT NULL REFERENCES detalle_recepciones(id_detalle),
@@ -248,6 +268,8 @@ CREATE INDEX idx_ot_envase ON ordenes_trabajo(id_envase);
 CREATE INDEX idx_ot_estado ON ordenes_trabajo(estado);
 CREATE INDEX idx_llenado_envase ON llenados(id_envase);
 CREATE INDEX idx_entrega_cliente ON entregas(id_cliente);
+CREATE INDEX idx_certbaja_envase ON certificados_baja(id_envase);
+CREATE INDEX idx_certbaja_ot ON certificados_baja(id_orden_trabajo);
 CREATE INDEX idx_guia_detalle ON guias_despacho(id_detalle_recepcion);
 CREATE INDEX idx_guia_planta ON guias_despacho(id_planta_externa);
 CREATE INDEX idx_guia_estado ON guias_despacho(estado);

@@ -22,6 +22,7 @@ app.use('/api/entregas', require('./routes/entregas'));
 app.use('/api/plantas-externas', require('./routes/plantasExternas'));
 app.use('/api/guias-despacho', require('./routes/guiasDespacho'));
 app.use('/api/transacciones', require('./routes/transacciones'));
+app.use('/api/certificados-baja', require('./routes/certificadosBaja'));
 
 app.get('/api', (req, res) => {
     res.json({ message: 'API PROMINER v2.1 - Control de Envases', version: '2.1' });

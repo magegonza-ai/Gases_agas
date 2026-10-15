@@ -6,6 +6,7 @@ import Recepciones from './pages/Recepciones';
 import Cilindros from './pages/Cilindros';
 import Llenados from './pages/Llenados';
 import OrdenesTrabajo from './pages/OrdenesTrabajo';
+import CilindrosBaja from './pages/CilindrosBaja';
 import Entregas from './pages/Entregas';
 import Clientes from './pages/Clientes';
 import Productos from './pages/Productos';
@@ -24,6 +25,7 @@ function App() {
                     <Route path="cilindros" element={<Cilindros />} />
                     <Route path="llenados" element={<Llenados />} />
                     <Route path="ordenes-trabajo" element={<OrdenesTrabajo />} />
+                    <Route path="cilindros-baja" element={<CilindrosBaja />} />
                     <Route path="entregas" element={<Entregas />} />
                     <Route path="guias-despacho" element={<GuiasDespacho />} />
                     <Route path="clientes" element={<Clientes />} />
